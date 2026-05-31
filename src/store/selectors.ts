@@ -2,6 +2,7 @@
 
 import type { AppState, ShellShield } from "@/types";
 import { shopItemById } from "@/data/shopItems";
+import { addDays } from "@/logic/dates";
 
 type Inventory = AppState["inventory"];
 
@@ -21,6 +22,33 @@ export function availableShields(shields: ShellShield[]): number {
 
 export function totalTurtles(entries: AppState["entries"]): number {
   return Object.keys(entries).length;
+}
+
+/** "On this day" memory: same calendar date last year, else 90 / 30 days ago. */
+export function findMemory(
+  entries: AppState["entries"],
+  todayKey: string,
+): { entry: AppState["entries"][string]; label: string } | undefined {
+  const back = (days: number) => addDays(todayKey, -days);
+  const candidates: { days: number; label: string }[] = [
+    { days: 365, label: "One year ago today 🥹" },
+    { days: 90, label: "90 days ago 🐢" },
+    { days: 30, label: "A month ago today" },
+  ];
+  for (const c of candidates) {
+    const e = entries[back(c.days)];
+    if (e) return { entry: e, label: c.label };
+  }
+  return undefined;
+}
+
+/** Distinct turtle names across entries (for feed filtering). */
+export function distinctTurtleNames(entries: AppState["entries"]): string[] {
+  const set = new Set<string>();
+  for (const e of Object.values(entries)) {
+    if (e.turtleName && e.turtleName.trim()) set.add(e.turtleName.trim());
+  }
+  return [...set].sort();
 }
 
 export function completionThisMonth(entries: AppState["entries"], year: number, month0: number): { done: number; days: number } {

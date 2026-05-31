@@ -13,7 +13,7 @@ interface FeedbackApi {
 
 const Ctx = createContext<FeedbackApi | null>(null);
 
-const CONFETTI = ["🐢", "🎉", "✨", "🪙", "💚", "🫧", "🌿"];
+const CONFETTI = ["🐢", "🎉", "✨", "🪙", "💚", "🫧", "🌿", "🌸", "🐠", "🍀", "💛", "🌊"];
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
@@ -44,7 +44,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             <span
               key={i}
               className="confetti"
-              style={{ left: `${(i / confetti.items.length) * 100}%`, animationDelay: `${(i % 6) * 0.08}s` }}
+              style={{
+                left: `${(i / confetti.items.length) * 100}%`,
+                animationDelay: `${(i % 8) * 0.07}s`,
+                ["--dx" as string]: `${((i % 5) - 2) * 42}px`,
+              }}
             >
               {e}
             </span>

@@ -20,6 +20,11 @@ function svg(bg: string, shell: string, shellDark: string, accent: string): stri
     <circle cx='232' cy='140' r='8' fill='#ff9eb5' opacity='0.55'/>
     <circle cx='96' cy='300' r='22' fill='${shell}'/>
     <circle cx='304' cy='300' r='22' fill='${shell}'/>
+    <path d='M0 350 Q100 340 200 355 Q300 365 400 350 L400 400 L0 400 Z' fill='${shellDark}' opacity='0.13'/>
+    <circle cx='128' cy='292' r='8' fill='none' stroke='${accent}' stroke-width='2' opacity='0.55'/>
+    <circle cx='146' cy='272' r='5' fill='none' stroke='${accent}' stroke-width='1.5' opacity='0.45'/>
+    <circle cx='270' cy='282' r='6' fill='none' stroke='${accent}' stroke-width='1.5' opacity='0.5'/>
+    <path d='M196 78 c0-6 -10-6 -10 0 c0 8 10 14 10 14 c0 0 10-6 10-14 c0-6 -10-6 -10 0 z' fill='${accent}' opacity='0.75'/>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(s)}`;
 }

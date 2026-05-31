@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { TabBar } from "./TabBar";
 import { useFeedback } from "./feedback";
 import { useStore } from "@/store/useStore";
@@ -30,7 +31,30 @@ function PondDecor() {
       })}
       <span className="ripple" style={{ left: "12%", top: "30%", width: 90, height: 90 }} />
       <span className="ripple" style={{ right: "8%", top: "55%", width: 70, height: 70, animationDelay: "2.5s" }} />
+
+      {/* lily pads */}
+      <LilyPad style={{ left: "4%", top: "16%", width: 54, opacity: 0.7 }} flower />
+      <LilyPad style={{ right: "5%", top: "40%", width: 40, opacity: 0.55 }} />
+      <LilyPad style={{ left: "28%", bottom: "20%", width: 46, opacity: 0.5 }} />
+
+      {/* a shy little fish drifting by */}
+      <span className="fish" aria-hidden>🐠</span>
     </div>
+  );
+}
+
+function LilyPad({ style, flower }: { style: React.CSSProperties; flower?: boolean }) {
+  return (
+    <svg viewBox="0 0 52 52" style={{ position: "absolute", ...style }} aria-hidden>
+      <path d="M26 4 A22 22 0 1 1 25.9 4 L26 26 Z" fill="#7dba8a" />
+      <line x1="26" y1="26" x2="26" y2="5" stroke="#5f9a6a" strokeWidth="1.2" opacity="0.5" />
+      {flower && (
+        <>
+          <circle cx="26" cy="11" r="4" fill="#ffb3c6" opacity="0.9" />
+          <circle cx="26" cy="11" r="1.8" fill="#fff" opacity="0.8" />
+        </>
+      )}
+    </svg>
   );
 }
 
@@ -68,7 +92,17 @@ export function AppShell() {
   return (
     <div className="app">
       <PondDecor />
-      <Outlet />
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={loc.pathname}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+        >
+          <Outlet />
+        </motion.div>
+      </AnimatePresence>
       <TabBar />
     </div>
   );

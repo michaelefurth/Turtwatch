@@ -10,6 +10,7 @@ import type { EntryDraft } from "@/store/useStore";
 import type { NotificationSettings, UserProfile } from "@/types";
 import { uploadReward } from "@/logic/turtbux";
 import { computeStreak } from "@/logic/streak";
+import { persistPhoto } from "@/lib/storage";
 
 const REPAIR_COST = 30;
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
@@ -85,11 +86,13 @@ export class SupabaseRepository implements TurtwatchRepository {
 
   private async insertEntry(date: string, draft: EntryDraft, state: string, earned: number) {
     const uid = await this.requireUser();
+    // Move any inline base64 photo into object storage; keep a durable URL.
+    const photoUrl = await persistPhoto(`${uid}/${date}`, draft.photoUrl);
     const { error } = await this.db.from("turtle_entry").insert({
       user_id: uid,
       entry_date: date,
       state: state as never,
-      photo_url: draft.photoUrl ?? null,
+      photo_url: photoUrl ?? null,
       photo_source: (draft.photoSource ?? null) as never,
       turtle_name: draft.turtleName ?? null,
       mood: (draft.mood ?? null) as never,
@@ -120,10 +123,11 @@ export class SupabaseRepository implements TurtwatchRepository {
 
   async updateEntry(date: string, draft: EntryDraft) {
     const uid = await this.requireUser();
+    const photoUrl = await persistPhoto(`${uid}/${date}`, draft.photoUrl);
     const { error } = await this.db
       .from("turtle_entry")
       .update({
-        photo_url: draft.photoUrl ?? null,
+        photo_url: photoUrl ?? null,
         turtle_name: draft.turtleName ?? null,
         mood: (draft.mood ?? null) as never,
         notes: draft.notes ?? null,

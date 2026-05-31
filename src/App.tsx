@@ -7,6 +7,7 @@ import { Onboarding } from "@/screens/Onboarding";
 import { Home } from "@/screens/Home";
 import { DailyUpload } from "@/screens/DailyUpload";
 import { CalendarScreen } from "@/screens/Calendar";
+import { Feed } from "@/screens/Feed";
 import { EntryDetail } from "@/screens/EntryDetail";
 import { MissedDayRepair } from "@/screens/MissedDayRepair";
 import { Shop } from "@/screens/Shop";
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/upload" element={<DailyUpload />} />
             <Route path="/calendar" element={<CalendarScreen />} />
+            <Route path="/feed" element={<Feed />} />
             <Route path="/day/:date" element={<EntryDetail />} />
             <Route path="/repair/:date" element={<MissedDayRepair />} />
             <Route path="/shop" element={<Shop />} />

@@ -8,7 +8,14 @@ import { Card, PillButton, TurtbuxChip } from "@/components/common";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
-import { equippedAccessory } from "@/store/selectors";
+import { equippedAccessory, equippedFrame, findMemory } from "@/store/selectors";
+
+const LINES = {
+  done: ["We did it again! 🎉", "Another turtle in the books! 📚", "Look at us go! 🌟", "Pond duty: complete! ✅"],
+  risk: ["Quick, before midnight! ⏰", "Don't let our streak nap! 🙇", "One photo saves the day! 📸"],
+  lapsed: ["Welcome back — I missed you 💚", "The pond was quiet without you 🌙", "No worries, let's start again 🌱"],
+  idle: ["Ready for today's turtle? 🐢", "What's today's turtle up to? 🌿", "I've been basking, you? ☀️", "Got a turtle for me? 📸"],
+};
 
 function hashStr(s: string): number {
   let h = 0;
@@ -55,13 +62,10 @@ export function Home() {
     ? "sleepy"
     : "happy";
 
-  const mascotSays = todayEntry
-    ? "We did it again! 🎉"
-    : streak.atRisk
-    ? "Quick, before midnight! ⏰"
-    : lapsed
-    ? "Welcome back — I missed you 💚"
-    : "Ready for today's turtle?";
+  const lineSet = todayEntry ? LINES.done : streak.atRisk ? LINES.risk : lapsed ? LINES.lapsed : LINES.idle;
+  const mascotSays = lineSet[hashStr(today) % lineSet.length];
+  const frame = equippedFrame(inventory) ?? "";
+  const memory = useMemo(() => (todayEntry ? findMemory(entries, today) : undefined), [entries, today, todayEntry]);
 
   // deterministic fact-of-the-day (hash of full date, not day-of-month)
   const fact = FACTS[hashStr(today) % FACTS.length];
@@ -85,7 +89,7 @@ export function Home() {
       <Card className="center">
         <div className="speech">{mascotName} says: “{mascotSays}”</div>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-          <Mascot mascot={profile.mascot} mood={mood} accessory={accessory} size={96} wave={lapsed} />
+          <Mascot mascot={profile.mascot} mood={mood} accessory={accessory} size={96} wave={lapsed} interactive />
         </div>
         <StreakRing current={streak.current} longest={streak.longest} atRisk={streak.atRisk} />
       </Card>
@@ -115,7 +119,7 @@ export function Home() {
           </div>
           <div className="row mt" style={{ alignItems: "flex-start" }}>
             {todayEntry.photoUrl && (
-              <img src={todayEntry.photoUrl} alt="today's turtle" style={{ width: 86, height: 86, borderRadius: 16, objectFit: "cover" }} />
+              <img src={todayEntry.photoUrl} alt="today's turtle" className={frame} style={{ width: 86, height: 86, borderRadius: 16, objectFit: "cover" }} />
             )}
             <div className="grow">
               <b>{todayEntry.turtleName || "Today's turtle"}</b>
@@ -133,6 +137,22 @@ export function Home() {
             {streak.atRisk ? "Your streak naps at midnight — quick!" : "Upload one to keep your streak going."}
           </p>
           <PillButton onClick={() => nav("/upload")}>📸 Upload today's turtle</PillButton>
+        </Card>
+      )}
+
+      {memory && (
+        <Card onClick={() => nav(`/day/${memory.entry.date}`)} className="flat">
+          <div className="row">
+            {memory.entry.photoUrl ? (
+              <img src={memory.entry.photoUrl} alt="" aria-hidden className={frame} style={{ width: 54, height: 54, borderRadius: 12, objectFit: "cover" }} />
+            ) : (
+              <span style={{ fontSize: 30 }} aria-hidden>🛡️</span>
+            )}
+            <div className="grow">
+              <h3 style={{ margin: 0 }}>{memory.label}</h3>
+              <span className="muted" style={{ fontSize: 13 }}>{memory.entry.turtleName || "A lovely turtle"} →</span>
+            </div>
+          </div>
         </Card>
       )}
 

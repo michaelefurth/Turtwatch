@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
@@ -6,16 +6,28 @@ import { Card, PillButton, StateBadge } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { moodEmoji } from "@/components/MoodPicker";
 import { prettyDate, todayKey } from "@/logic/dates";
+import { computeStreak } from "@/logic/streak";
 import { equippedFrame } from "@/store/selectors";
 
 export function EntryDetail() {
   const { date = "" } = useParams();
   const nav = useNavigate();
   const { toast } = useFeedback();
-  const entry = useStore((s) => s.entries[date]);
+  const entries = useStore((s) => s.entries);
+  const entry = entries[date];
   const inventory = useStore((s) => s.inventory);
   const del = useStore((s) => s.deleteEntry);
   const [confirmDel, setConfirmDel] = useState(false);
+
+  // preview the streak impact of deleting this entry
+  const streakDelta = useMemo(() => {
+    if (!entry) return null;
+    const before = computeStreak(entries).current;
+    const rest = { ...entries };
+    delete rest[date];
+    const after = computeStreak(rest).current;
+    return { before, after };
+  }, [entries, entry, date]);
 
   if (!entry) {
     // empty past day → send to repair; today → upload
@@ -87,7 +99,11 @@ export function EntryDetail() {
           nav("/calendar");
         }}
       >
-        <p className="center muted" style={{ margin: 0 }}>This may affect your streak. The day will go back to napping.</p>
+        <p className="center muted" style={{ margin: 0 }}>
+          {streakDelta && streakDelta.before !== streakDelta.after
+            ? `Your streak will drop from ${streakDelta.before} to ${streakDelta.after} days. The day goes back to napping 😴`
+            : "The day will go back to napping 😴 (your current streak is safe)."}
+        </p>
       </ConfirmModal>
     </div>
   );

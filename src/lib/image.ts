@@ -42,3 +42,15 @@ export async function fileToStorableDataUrl(
     return original; // non-image or canvas unavailable — keep as-is
   }
 }
+
+/** Convert a data URL to a Blob for upload to object storage. */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [meta, b64] = dataUrl.split(",");
+  const mime = /data:(.*?);base64/.exec(meta)?.[1] ?? "image/jpeg";
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+export const isDataUrl = (s?: string): s is string => !!s && s.startsWith("data:");

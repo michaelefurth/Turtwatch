@@ -11,6 +11,7 @@ import { computeStreak } from "@/logic/streak";
 import { estimateUpload } from "@/logic/turtbux";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { fileToStorableDataUrl } from "@/lib/image";
+import { generateTurtleName } from "@/data/turtleNames";
 import type { Mood, PhotoSource } from "@/types";
 
 export function DailyUpload() {
@@ -70,7 +71,9 @@ export function DailyUpload() {
     const startedBroken = !isEditing && streakNow === 0;
     const reward = isEditing ? update(date, draft) : save(draft);
     celebrate();
-    if (reward.total > 0) toast(`+${reward.total} Turtbux! 🪙`, "🎉");
+    const CHEERS = ["Shell yeah! 🐢", "Turtle-y awesome! 🎉", "Pond-tastic! 🌿", "Snap-tacular! 📸"];
+    if (reward.total > 0 && !isEditing) toast(`${CHEERS[Math.floor(Math.random() * CHEERS.length)]} +${reward.total} 🪙`, "🎉");
+    else if (reward.total > 0) toast(`+${reward.total} Turtbux! 🪙`, "🎉");
     else toast("Saved! 💾", "🐢");
     if (startedBroken) setTimeout(() => toast("New streak started! 🌱", "🐢"), 300);
     reward.newAchievements.forEach((id) => {
@@ -122,8 +125,11 @@ export function DailyUpload() {
 
       <Card className="stack">
         <div>
-          <label className="field">Turtle name</label>
-          <input className="input" placeholder="Sir Reginald Shellsworth" value={turtleName} onChange={(e) => setTurtleName(e.target.value)} />
+          <label className="field" htmlFor="turtle-name">Turtle name</label>
+          <div className="row gap8">
+            <input id="turtle-name" className="input grow" placeholder="Sir Reginald Shellsworth" value={turtleName} onChange={(e) => setTurtleName(e.target.value)} />
+            <button type="button" className="chip outline" aria-label="Generate a random turtle name" title="Random name" onClick={() => setTurtleName(generateTurtleName())} style={{ fontSize: 20, padding: "10px 12px" }}>🎲</button>
+          </div>
         </div>
         <div>
           <label className="field">Mood</label>
