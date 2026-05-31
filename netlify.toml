@@ -1,0 +1,18 @@
+# Netlify build + SPA routing for TurtWatch.
+# TurtWatch is a client-routed single-page app (react-router). Without the
+# catch-all redirect below, reloading or deep-linking a route like /feed or
+# /day/2026-05-31 would 404 on Netlify.
+
+[build]
+  command = "pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Serve index.html for any path the static host doesn't recognize, letting
+# react-router handle it client-side.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
