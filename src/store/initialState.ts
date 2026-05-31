@@ -29,5 +29,7 @@ export function makeInitialState(): AppState {
     factOfDayClaimedOn: undefined,
     autoShieldCheckedOn: undefined,
     lastReminderOn: undefined,
+    game: undefined,
+    cloud: { autoBackup: false },
   };
 }

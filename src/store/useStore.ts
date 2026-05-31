@@ -13,6 +13,7 @@ import { makeInitialState } from "./initialState";
 import { loadState, saveState, clearState } from "./persistence";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { uploadReward, ONBOARDING_GIFT, FACT_OF_DAY } from "@/logic/turtbux";
+import { remainingGameReward } from "@/logic/flipgame";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
 import { generateAiTurtle } from "@/data/sampleTurtles";
@@ -49,13 +50,16 @@ interface Actions {
   shieldDay: (date: string) => { ok: boolean; reason?: string };
   buyShield: () => { ok: boolean; reason?: string };
   autoApplyShield: () => string | null; // returns the date protected, if any
-  buyItem: (itemId: string) => { ok: boolean; reason?: string };
+  buyItem: (itemId: string, priceOverride?: number) => { ok: boolean; reason?: string };
   equipItem: (itemId: string) => void;
   readFact: (factId: string) => number; // turtbux awarded (0 if already read)
   claimFactOfDay: () => number;
+  awardGameReward: (amount: number) => number; // returns Turtbux actually awarded
   updateNotifications: (n: Partial<NotificationSettings>) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
   markReminderFired: () => void;
+  setCloud: (patch: Partial<NonNullable<AppState["cloud"]>>) => void;
+  hydrateState: (state: AppState) => void;
   reset: () => void;
 }
 
@@ -302,15 +306,23 @@ export const useStore = create<Store>((set, get) => {
       return missed!;
     },
 
-    buyItem: (itemId) => {
+    buyItem: (itemId, priceOverride) => {
       const s = get();
       const item = shopItemById(itemId);
       if (!item) return { ok: false, reason: "Unknown item." };
-      if (item.id === "buy_shield") return get().buyShield();
+      // a daily-deal price override can only ever lower the price, never raise it
+      const price = priceOverride != null ? Math.min(priceOverride, item.price) : item.price;
+      if (item.id === "buy_shield") {
+        if (s.wallet.balance < price) return { ok: false, reason: "Not enough Turtbux." };
+        const shields = [...s.shields, { id: uid(), status: "available" as const, acquiredAt: nowIso() }];
+        const money = applyDelta(s, -price, "shield_buy", "shield");
+        commit({ shields, ...money });
+        return { ok: true };
+      }
       if (!item.consumable && s.inventory[itemId]) return { ok: false, reason: "Already owned." };
-      if (s.wallet.balance < item.price) return { ok: false, reason: "Not enough Turtbux." };
+      if (s.wallet.balance < price) return { ok: false, reason: "Not enough Turtbux." };
       const inventory = { ...s.inventory, [itemId]: { equipped: false, acquiredAt: nowIso() } };
-      const money = applyDelta(s, -item.price, "shop_purchase", "shopItem", itemId);
+      const money = applyDelta(s, -price, "shop_purchase", "shopItem", itemId);
       const { achievements } = evaluate({ ...s, inventory, ...money });
       commit({ inventory, ...money, achievements });
       return { ok: true };
@@ -358,9 +370,30 @@ export const useStore = create<Store>((set, get) => {
       return FACT_OF_DAY;
     },
 
+    awardGameReward: (amount) => {
+      const s = get();
+      const today = todayKey();
+      const earnedToday = s.game?.date === today ? s.game.earned : 0;
+      const award = remainingGameReward(earnedToday, amount);
+      if (award <= 0) {
+        commit({ game: { date: today, earned: earnedToday } });
+        return 0;
+      }
+      const money = applyDelta(s, award, "minigame", "flipgame");
+      commit({ game: { date: today, earned: earnedToday + award }, ...money });
+      return award;
+    },
+
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
     markReminderFired: () => commit({ lastReminderOn: todayKey() }),
+    setCloud: (patch) => commit({ cloud: { ...(get().cloud ?? { autoBackup: false }), ...patch } }),
+
+    hydrateState: (state) => {
+      // replace local state with a restored cloud snapshot
+      saveState(state);
+      set(state as never);
+    },
 
     reset: () => {
       clearState();
@@ -369,6 +402,11 @@ export const useStore = create<Store>((set, get) => {
     },
   };
 });
+
+/** The persistable AppState (no action functions) — used for cloud backup. */
+export function getPersistableState(): AppState {
+  return stripState(useStore.getState());
+}
 
 // ---------- helpers (module scope, pure-ish) ----------
 
@@ -438,11 +476,11 @@ function stripState(s: Store): AppState {
   const {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn,
+    autoShieldCheckedOn, lastReminderOn, game, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn,
+    autoShieldCheckedOn, lastReminderOn, game, cloud,
   };
 }

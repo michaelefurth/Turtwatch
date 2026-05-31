@@ -15,9 +15,12 @@ interface Props {
 }
 
 const ACC_EMOJI: Record<string, { emoji: string; top: string }> = {
-  acc_party_hat: { emoji: "🎉", top: "-18%" },
-  acc_sunnies: { emoji: "🕶️", top: "30%" },
+  acc_party_hat: { emoji: "🎩", top: "-18%" },
+  acc_sunnies: { emoji: "🕶️", top: "26%" },
   acc_crown: { emoji: "👑", top: "-20%" },
+  acc_bow: { emoji: "🎀", top: "-14%" },
+  acc_flower: { emoji: "🌷", top: "-16%" },
+  acc_scarf: { emoji: "🧣", top: "52%" },
 };
 
 /** Turtley (mint) / Shelldon (blue) — a cute sticker turtle with moods + blink. */

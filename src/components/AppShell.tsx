@@ -6,6 +6,7 @@ import { useFeedback } from "./feedback";
 import { useStore } from "@/store/useStore";
 import { themeById } from "@/data/shopItems";
 import { useReminders } from "@/hooks/useReminders";
+import { useCloudAutoBackup } from "@/hooks/useCloudAutoBackup";
 
 /** Decorative pond background — drifting bubbles + ripples. */
 function PondDecor() {
@@ -63,6 +64,7 @@ export function AppShell() {
   const loc = useLocation();
   const { toast } = useFeedback();
   useReminders();
+  useCloudAutoBackup();
 
   // surface persistence failures (e.g. storage quota from large photos)
   useEffect(() => {

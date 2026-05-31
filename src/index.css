@@ -225,6 +225,8 @@ label.field { display: block; font-weight: 700; font-size: 13px; margin: 0 0 6px
 .frame_lilypad { box-shadow: 0 0 0 6px #bfe7c8, 0 0 0 12px #9fdcb0; }
 .frame_bubbles { box-shadow: 0 0 0 5px #cfe9ff; outline: 3px dashed #9fcdf5; outline-offset: 6px; }
 .frame_gold { box-shadow: 0 0 0 6px var(--gold), 0 8px 20px rgba(246,196,83,0.5); }
+.frame_starlight { box-shadow: 0 0 0 5px #d7c8ff, 0 0 18px 4px rgba(168,140,240,0.55); }
+.frame_rainbow { box-shadow: 0 0 0 4px #ffb3c6, 0 0 0 8px #ffe1a8, 0 0 0 12px #a8edbe; }
 
 /* ---------- modal ---------- */
 .scrim { position: fixed; inset: 0; background: rgba(40,60,50,0.4); display: flex; align-items: flex-end; justify-content: center; z-index: 100; max-width: var(--maxw); margin: 0 auto; }
@@ -243,6 +245,19 @@ label.field { display: block; font-weight: 700; font-size: 13px; margin: 0 0 6px
 .toast-wrap { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 300; width: calc(var(--maxw) - 36px); max-width: calc(100% - 36px); display: flex; flex-direction: column; gap: 8px; }
 .toast { background: var(--surface); border-radius: 999px; padding: 12px 18px; box-shadow: var(--shadow); font-weight: 800; display: flex; align-items: center; gap: 8px; animation: pop 0.25s ease; }
 @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ---------- turtle flip game ---------- */
+.flip-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.flip-card { position: relative; aspect-ratio: 1; border: none; border-radius: 16px; background: transparent; padding: 0; cursor: pointer; }
+.flip-card .flip-back, .flip-card .flip-front {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 16px; overflow: hidden;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+.flip-card .flip-back { background: color-mix(in srgb, var(--primary) 32%, var(--surface)); font-size: 26px; box-shadow: var(--shadow-sm); }
+.flip-card .flip-front { box-shadow: var(--shadow-sm); }
+.flip-card .flip-front img { width: 100%; height: 100%; object-fit: cover; }
+.flip-card.matched .flip-front { box-shadow: 0 0 0 3px var(--primary); }
 
 .legend { display: flex; flex-wrap: wrap; gap: 8px; }
 .legend .badge { background: var(--surface); box-shadow: var(--shadow-sm); }

@@ -173,9 +173,22 @@ export function Home() {
         </div>
       </Card>
 
+      <Card onClick={() => nav("/play")} className="flat">
+        <div className="between">
+          <div className="row">
+            <span style={{ fontSize: 30 }} aria-hidden>🎴</span>
+            <div>
+              <h3 style={{ margin: 0 }}>Turtle Flip</h3>
+              <span className="muted" style={{ fontSize: 13 }}>A calm match game with your turtles → earn 🪙</span>
+            </div>
+          </div>
+          <span className="chip">Relax 🌿</span>
+        </div>
+      </Card>
+
       <div className="between">
         <PillButton variant="secondary" small onClick={() => nav("/calendar")}>📅 Calendar</PillButton>
-        <PillButton variant="secondary" small onClick={() => nav("/shop")}>🛍️ Shop</PillButton>
+        <PillButton variant="secondary" small onClick={() => nav("/feed")}>📔 Diary</PillButton>
         <PillButton variant="secondary" small onClick={() => nav("/settings")}>⚙️ Settings</PillButton>
       </div>
     </div>

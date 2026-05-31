@@ -1,13 +1,13 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DayState } from "@/types";
 
-export function Card({ children, className = "", onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
+export function Card({ children, className = "", onClick, style }: { children: ReactNode; className?: string; onClick?: () => void; style?: CSSProperties }) {
   return (
     <div
       className={`card ${className}`}
       onClick={onClick}
-      style={onClick ? { cursor: "pointer" } : undefined}
+      style={{ ...(onClick ? { cursor: "pointer" } : null), ...style }}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={

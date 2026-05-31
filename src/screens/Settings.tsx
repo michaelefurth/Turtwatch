@@ -22,6 +22,7 @@ export function Settings() {
   const nav = useNavigate();
   const { toast } = useFeedback();
   const profile = useStore((s) => s.profile);
+  const cloud = useStore((s) => s.cloud);
   const notifications = useStore((s) => s.notifications);
   const inventory = useStore((s) => s.inventory);
   const updateProfile = useStore((s) => s.updateProfile);
@@ -49,6 +50,21 @@ export function Settings() {
         <h1>Settings ⚙️</h1>
         <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
       </div>
+
+      <Card onClick={() => nav("/account")}>
+        <div className="between">
+          <div className="row">
+            <span style={{ fontSize: 28 }} aria-hidden>☁️</span>
+            <div>
+              <h3 style={{ margin: 0 }}>Account & cloud sync</h3>
+              <span className="muted" style={{ fontSize: 13 }}>
+                {cloud?.email ? `Signed in as ${cloud.email}` : "Save your turtles to the cloud →"}
+              </span>
+            </div>
+          </div>
+          <span className="chip">{cloud?.email ? "Manage" : "Set up"}</span>
+        </div>
+      </Card>
 
       <Card>
         <h3>Your name</h3>

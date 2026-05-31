@@ -26,6 +26,7 @@ export type LedgerReason =
   | "shield_buy"
   | "shop_purchase"
   | "onboarding_gift"
+  | "minigame"
   | "refund"
   | "admin";
 
@@ -154,4 +155,8 @@ export interface AppState {
   factOfDayClaimedOn?: string; // date key
   autoShieldCheckedOn?: string; // date key — auto-shield runs at most once/day
   lastReminderOn?: string; // date key — local reminder fired at most once/day
+  /** daily Turtbux earned from the mini-game (capped per day) */
+  game?: { date: string; earned: number };
+  /** cloud account / backup metadata (Supabase-backed) */
+  cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }
