@@ -5,10 +5,16 @@ import { useFeedback } from "@/components/feedback";
 import { Mascot, type MascotMood } from "@/components/Mascot";
 import { StreakRing } from "@/components/StreakRing";
 import { Card, PillButton, TurtbuxChip } from "@/components/common";
-import { computeStreak } from "@/logic/streak";
+import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
 import { equippedAccessory } from "@/store/selectors";
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i);
+  return Math.abs(h);
+}
 
 export function Home() {
   const nav = useNavigate();
@@ -18,11 +24,19 @@ export function Home() {
   const balance = useStore((s) => s.wallet.balance);
   const inventory = useStore((s) => s.inventory);
   const autoApplyShield = useStore((s) => s.autoApplyShield);
+  const claimFactOfDay = useStore((s) => s.claimFactOfDay);
+  const factClaimedOn = useStore((s) => s.factOfDayClaimedOn);
 
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const today = todayKey();
   const todayEntry = entries[today];
   const accessory = equippedAccessory(inventory);
+  const mascotName = profile.mascotName || (profile.mascot === "turtley" ? "Turtley" : "Shelldon");
+
+  // lapsed user: streak is broken but they have history → offer recovery
+  const hasHistory = Object.keys(entries).length > 0;
+  const lapsed = !todayEntry && streak.current === 0 && hasHistory;
+  const missedDay = lapsed ? mostRecentMissedDay(entries) : undefined;
 
   // auto-apply a Shell Shield to a missed day on first load (default behavior)
   const ranAuto = useRef(false);
@@ -37,10 +51,26 @@ export function Home() {
     ? "excited"
     : streak.atRisk
     ? "worried"
+    : lapsed
+    ? "sleepy"
     : "happy";
 
-  // pick a deterministic fact-of-the-day
-  const fact = FACTS[new Date(today).getDate() % FACTS.length];
+  const mascotSays = todayEntry
+    ? "We did it again! 🎉"
+    : streak.atRisk
+    ? "Quick, before midnight! ⏰"
+    : lapsed
+    ? "Welcome back — I missed you 💚"
+    : "Ready for today's turtle?";
+
+  // deterministic fact-of-the-day (hash of full date, not day-of-month)
+  const fact = FACTS[hashStr(today) % FACTS.length];
+
+  const openFactOfDay = () => {
+    const reward = claimFactOfDay();
+    if (reward > 0) toast(`+${reward} Turtbux — fact of the day! 🪙`, "📖");
+    nav("/facts");
+  };
 
   return (
     <div className="screen stack">
@@ -53,11 +83,29 @@ export function Home() {
       </div>
 
       <Card className="center">
+        <div className="speech">{mascotName} says: “{mascotSays}”</div>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-          <Mascot mascot={profile.mascot} mood={mood} accessory={accessory} size={96} />
+          <Mascot mascot={profile.mascot} mood={mood} accessory={accessory} size={96} wave={lapsed} />
         </div>
         <StreakRing current={streak.current} longest={streak.longest} atRisk={streak.atRisk} />
       </Card>
+
+      {lapsed && missedDay && (
+        <Card>
+          <div className="row">
+            <span style={{ fontSize: 30 }}>💤</span>
+            <div className="grow">
+              <h3 style={{ margin: 0 }}>Welcome back!</h3>
+              <span className="muted" style={{ fontSize: 13 }}>
+                Your streak history is safe (longest: {streak.longest}). Repair a missed day or just start fresh today.
+              </span>
+            </div>
+          </div>
+          <div className="mt">
+            <PillButton variant="secondary" small onClick={() => nav(`/repair/${missedDay}`)}>🩹 Repair a missed day</PillButton>
+          </div>
+        </Card>
+      )}
 
       {todayEntry ? (
         <Card>
@@ -88,16 +136,20 @@ export function Home() {
         </Card>
       )}
 
-      <Card onClick={() => nav("/facts")} className="flat">
+      <Card onClick={openFactOfDay} className="flat">
         <div className="between">
           <div className="row">
-            <span style={{ fontSize: 30 }}>{fact.emoji}</span>
+            <span style={{ fontSize: 30 }} aria-hidden>{fact.emoji}</span>
             <div>
               <h3 style={{ margin: 0 }}>Turtle fact of the day</h3>
               <span className="muted" style={{ fontSize: 13 }}>{fact.title} →</span>
             </div>
           </div>
-          <span className="chip gold">🪙 +</span>
+          {factClaimedOn !== today ? (
+            <span className="chip gold">🪙 +2</span>
+          ) : (
+            <span className="chip">Read ✓</span>
+          )}
         </div>
       </Card>
 

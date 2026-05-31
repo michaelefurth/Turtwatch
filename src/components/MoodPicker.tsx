@@ -20,6 +20,7 @@ export function MoodPicker({ value, onChange }: { value?: Mood; onChange: (m: Mo
         <button
           key={m.id}
           className={`chip ${value === m.id ? "selected" : "outline"}`}
+          aria-pressed={value === m.id}
           onClick={() => onChange(m.id)}
           type="button"
         >

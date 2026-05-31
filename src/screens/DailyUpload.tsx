@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Card, PillButton } from "@/components/common";
@@ -9,11 +9,13 @@ import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
 import { ACHIEVEMENTS } from "@/data/achievements";
 import { computeStreak } from "@/logic/streak";
 import { estimateUpload } from "@/logic/turtbux";
-import { todayKey } from "@/logic/dates";
+import { todayKey, prettyDate } from "@/logic/dates";
+import { fileToStorableDataUrl } from "@/lib/image";
 import type { Mood, PhotoSource } from "@/types";
 
 export function DailyUpload() {
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const { celebrate, toast } = useFeedback();
   const entries = useStore((s) => s.entries);
   const save = useStore((s) => s.saveTodayEntry);
@@ -21,10 +23,13 @@ export function DailyUpload() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const today = todayKey();
-  const existing = entries[today];
+  // Editing a past entry uses ?date=YYYY-MM-DD; otherwise it's today's upload.
+  const date = params.get("date") || today;
+  const existing = entries[date];
+  const isEditing = !!existing;
 
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(existing?.photoUrl);
-  const [photoSource, setPhotoSource] = useState<PhotoSource>("sample");
+  const [photoSource, setPhotoSource] = useState<PhotoSource>(existing?.photoSource ?? "sample");
   const [turtleName, setTurtleName] = useState(existing?.turtleName ?? "");
   const [mood, setMood] = useState<Mood | undefined>(existing?.mood);
   const [notes, setNotes] = useState(existing?.notes ?? "");
@@ -35,12 +40,14 @@ export function DailyUpload() {
   const streakNow = useMemo(() => computeStreak(entries).current, [entries]);
   const hasNotes = notes.trim().length >= 10;
   const hasMeta = !!mood && tags.length > 0;
-  const estimate = estimateUpload(existing ? streakNow - 1 : streakNow, hasNotes, hasMeta);
+  const estimate = estimateUpload(streakNow, hasNotes, hasMeta);
 
-  const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoUrl(URL.createObjectURL(file));
+    // Persist a downscaled base64 copy — blob: URLs don't survive a reload.
+    const dataUrl = await fileToStorableDataUrl(file);
+    setPhotoUrl(dataUrl);
     setPhotoSource("library");
   };
 
@@ -58,24 +65,30 @@ export function DailyUpload() {
       tags,
       location: useLocation && locationLabel.trim() ? { label: locationLabel.trim() } : undefined,
     };
-    // Editing today's entry must not re-award the base upload (anti-farm).
-    const reward = existing ? update(today, draft) : save(draft);
+    // A new turtle is only ever created for TODAY. Editing (today or a past day)
+    // routes through updateEntry so the base upload reward can't be re-farmed.
+    const startedBroken = !isEditing && streakNow === 0;
+    const reward = isEditing ? update(date, draft) : save(draft);
     celebrate();
     if (reward.total > 0) toast(`+${reward.total} Turtbux! 🪙`, "🎉");
     else toast("Saved! 💾", "🐢");
+    if (startedBroken) setTimeout(() => toast("New streak started! 🌱", "🐢"), 300);
     reward.newAchievements.forEach((id) => {
       const a = ACHIEVEMENTS.find((x) => x.id === id);
-      if (a) setTimeout(() => toast(`Achievement: ${a.title}`, a.emoji), 400);
+      if (a) setTimeout(() => toast(`Achievement: ${a.title}`, a.emoji), 500);
     });
-    nav("/");
+    nav(isEditing && date !== today ? `/day/${date}` : "/");
   };
 
   return (
     <div className="screen stack">
       <div className="between">
-        <h1>{existing ? "Edit today's turtle" : "Today's turtle 📸"}</h1>
-        <span className="chip gold">~{estimate} 🪙</span>
+        <h1>{isEditing ? (date === today ? "Edit today's turtle" : "Edit turtle 🐢") : "Today's turtle 📸"}</h1>
+        {!isEditing && <span className="chip gold">~{estimate} 🪙</span>}
       </div>
+      {isEditing && date !== today && (
+        <span className="muted" style={{ fontWeight: 700, marginTop: -8 }}>{prettyDate(date)}</span>
+      )}
 
       <Card>
         {photoUrl ? (
@@ -136,7 +149,7 @@ export function DailyUpload() {
         </div>
       </Card>
 
-      <PillButton onClick={onSave}>{existing ? "Save changes 💾" : "Save turtle 🐢✨"}</PillButton>
+      <PillButton onClick={onSave}>{isEditing ? "Save changes 💾" : "Save turtle 🐢✨"}</PillButton>
       <PillButton variant="ghost" onClick={() => nav(-1)}>Cancel</PillButton>
     </div>
   );

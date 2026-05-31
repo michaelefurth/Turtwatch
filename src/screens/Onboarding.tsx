@@ -6,6 +6,7 @@ import { useFeedback } from "@/components/feedback";
 import { Mascot } from "@/components/Mascot";
 import { Card, PillButton } from "@/components/common";
 import { THEMES } from "@/data/shopItems";
+import { requestNotificationPermission } from "@/lib/notifications";
 import type { Mascot as MascotType } from "@/types";
 
 const SLIDES = [
@@ -30,13 +31,15 @@ export function Onboarding() {
   if (onboarded) return <Navigate to="/" replace />;
 
   const finish = () => {
+    const nick = name.trim();
     complete({
       mascot,
-      mascotName: name.trim() || (mascot === "turtley" ? "Turtley" : "Shelldon"),
+      mascotName: nick || (mascot === "turtley" ? "Turtley" : "Shelldon"),
       themeId,
-      displayName: "Pond Keeper",
+      displayName: nick || "Pond Keeper",
     });
     useStore.getState().updateNotifications({ dailyReminderEnabled: reminders, reminderTime });
+    if (reminders) void requestNotificationPermission();
     celebrate(["🪙", "🐢", "✨"]);
     toast("Welcome! +50 Turtbux to start 🪙", "🎉");
     nav("/");
@@ -86,8 +89,9 @@ export function Onboarding() {
                   </button>
                 ))}
               </div>
-              <label className="field" style={{ marginTop: 12 }}>Nickname (optional)</label>
-              <input className="input" placeholder={mascot === "turtley" ? "Turtley" : "Shelldon"} value={name} onChange={(e) => setName(e.target.value)} />
+              <label className="field" htmlFor="ob-name" style={{ marginTop: 12 }}>Your name (optional)</label>
+              <input id="ob-name" className="input" placeholder="e.g. Shellbert" value={name} onChange={(e) => setName(e.target.value)} />
+              <span className="muted" style={{ fontSize: 12 }}>We'll greet you and name your mascot with this.</span>
             </Card>
 
             <Card>

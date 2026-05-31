@@ -1,11 +1,11 @@
 import type { ShopItem, ThemePalette } from "@/types";
 
 export const THEMES: ThemePalette[] = [
-  { id: "pond_mint", name: "Pond Mint", bg: "#eafaf0", surface: "#ffffff", primary: "#8fd6a8", primaryDeep: "#4fa873", accent: "#ffd6a5", text: "#33503f" },
-  { id: "bubblegum", name: "Bubblegum Pond", bg: "#fdeef4", surface: "#ffffff", primary: "#f7a8c4", primaryDeep: "#e26d97", accent: "#bfe3ff", text: "#5b3346" },
-  { id: "lilac_lagoon", name: "Lilac Lagoon", bg: "#f1ecfb", surface: "#ffffff", primary: "#c3b3f0", primaryDeep: "#8f78d6", accent: "#ffe1a8", text: "#423a5e" },
-  { id: "sunny_sand", name: "Sunny Sandbar", bg: "#fff6e6", surface: "#ffffff", primary: "#ffcf73", primaryDeep: "#e6a230", accent: "#9fdcc0", text: "#5a4422" },
-  { id: "deep_sea", name: "Deep Blue", bg: "#e8f1fb", surface: "#ffffff", primary: "#8fbdf0", primaryDeep: "#4f86d6", accent: "#ffc4d6", text: "#2d4360" },
+  { id: "pond_mint", name: "Pond Mint", bg: "#eafaf0", surface: "#ffffff", primary: "#8fd6a8", primaryDeep: "#2f7d50", accent: "#ffd6a5", text: "#2b4636" },
+  { id: "bubblegum", name: "Bubblegum Pond", bg: "#fdeef4", surface: "#ffffff", primary: "#f7a8c4", primaryDeep: "#c14d77", accent: "#bfe3ff", text: "#5b3346" },
+  { id: "lilac_lagoon", name: "Lilac Lagoon", bg: "#f1ecfb", surface: "#ffffff", primary: "#c3b3f0", primaryDeep: "#6f57bd", accent: "#ffe1a8", text: "#423a5e" },
+  { id: "sunny_sand", name: "Sunny Sandbar", bg: "#fff6e6", surface: "#ffffff", primary: "#ffcf73", primaryDeep: "#b3760f", accent: "#9fdcc0", text: "#5a4422" },
+  { id: "deep_sea", name: "Deep Blue", bg: "#e8f1fb", surface: "#ffffff", primary: "#8fbdf0", primaryDeep: "#2f66b8", accent: "#ffc4d6", text: "#2d4360" },
 ];
 
 const themeItems: ShopItem[] = THEMES.filter((t) => t.id !== "pond_mint").map((t, i) => ({

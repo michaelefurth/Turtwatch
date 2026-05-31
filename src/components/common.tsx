@@ -4,7 +4,23 @@ import type { DayState } from "@/types";
 
 export function Card({ children, className = "", onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
   return (
-    <div className={`card ${className}`} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
+    <div
+      className={`card ${className}`}
+      onClick={onClick}
+      style={onClick ? { cursor: "pointer" } : undefined}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       {children}
     </div>
   );

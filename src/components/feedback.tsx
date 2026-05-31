@@ -52,10 +52,10 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         </div>
       )}
       {toasts.length > 0 && (
-        <div className="toast-wrap">
+        <div className="toast-wrap" role="status" aria-live="polite">
           {toasts.map((t) => (
             <div className="toast" key={t.id}>
-              {t.emoji && <span>{t.emoji}</span>}
+              {t.emoji && <span aria-hidden>{t.emoji}</span>}
               <span>{t.text}</span>
             </div>
           ))}

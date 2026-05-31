@@ -24,6 +24,7 @@ The full product + design package:
 10. [Example DB Schema (SQL)](docs/10-database-schema.sql)
 11. [API Routes / Backend Functions](docs/11-api-routes.md)
 12. [Edge Cases & Considerations](docs/12-edge-cases.md)
+13. [Playtest Report (6 personas)](docs/13-playtest-report.md)
 
 ### 💻 Working prototype (`/src`)
 A **React + Vite + TypeScript PWA** implementing the full MVP UX and *all*
@@ -47,6 +48,26 @@ unit-tested — it ports directly to the recommended React Native production app
 > **React Native + Expo** with a **Supabase** backend — see
 > [docs/08](docs/08-technical-architecture.md). Swapping the persistence adapter
 > (`src/store/persistence.ts`) is the only change needed to move web → native → cloud.
+
+### ☁️ Cloud backend — Supabase (P1, `/supabase`)
+The P1 backend is scaffolded and real:
+- **Migrations** (`supabase/migrations`): full schema, RLS (owner-only rows,
+  world-readable catalogs), and a **server-authoritative economy** — atomic +
+  idempotent `apply_turtbux`, `purchase_shop_item`, `read_fact`, `shield_day`;
+  streaks recomputed by trigger so backfilling re-links runs.
+- **Edge Function** (`supabase/functions/ai-rescue`): reserves Turtbux → generates
+  a wholesome turtle (fixed prompt, no user text) → stores it → creates the entry →
+  refunds on failure.
+- **Client glue**: `src/lib/supabase.ts`, `src/data/repository.ts` (port interface),
+  `src/data/supabaseRepository.ts` (cloud impl).
+
+The app stays **local-first by default**; set `VITE_TURTWATCH_BACKEND=supabase`
+(+ URL/anon key) to use the cloud. Setup steps: [`supabase/README.md`](supabase/README.md).
+
+### 🧪 Playtested & hardened
+Six personas playtested the build; their critical findings are fixed (shield/economy
+exploits, lapsed-user flow, photo persistence, a working reminder system, and an
+accessibility pass). Full write-up + backlog: [docs/13](docs/13-playtest-report.md).
 
 ## Run it
 

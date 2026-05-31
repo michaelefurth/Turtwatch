@@ -14,7 +14,7 @@ import { loadState, saveState, clearState } from "./persistence";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { uploadReward, ONBOARDING_GIFT, FACT_OF_DAY } from "@/logic/turtbux";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
-import { todayKey } from "@/logic/dates";
+import { todayKey, addDays } from "@/logic/dates";
 import { generateAiTurtle } from "@/data/sampleTurtles";
 import { FACTS } from "@/data/facts";
 import { shopItemById } from "@/data/shopItems";
@@ -55,6 +55,7 @@ interface Actions {
   claimFactOfDay: () => number;
   updateNotifications: (n: Partial<NotificationSettings>) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
+  markReminderFired: () => void;
   reset: () => void;
 }
 
@@ -175,15 +176,34 @@ export const useStore = create<Store>((set, get) => {
       entries[date] = updated;
 
       const money = delta > 0 ? applyDelta(s, delta, "note_bonus", "entry", date) : {};
-      commit({ entries, ...money });
-      return { total: delta, parts, newAchievements: [] };
+      const { achievements, newAchievements } = evaluate({ ...s, entries, ...money });
+      commit({ entries, ...money, achievements });
+      return { total: delta, parts, newAchievements };
     },
 
     deleteEntry: (date) => {
       const s = get();
+      const entry = s.entries[date];
+      if (!entry) return;
       const entries = { ...s.entries };
       delete entries[date];
-      commit({ entries });
+
+      // Restore a Shell Shield that was consumed on this day (fairness).
+      let shields = s.shields;
+      if (entry.state === "shielded") {
+        const idx = shields.findIndex((sh) => sh.status === "used" && sh.usedOnDate === date);
+        if (idx !== -1) {
+          shields = shields.map((sh, i) =>
+            i === idx ? { ...sh, status: "available" as const, usedOnDate: undefined } : sh,
+          );
+        }
+      }
+
+      // Reverse Turtbux earned by this entry so delete + re-upload can't farm
+      // currency. Clamp to current balance to preserve the balance >= 0 invariant.
+      const reverse = Math.min(entry.earnedTurtbux, s.wallet.balance);
+      const money = reverse > 0 ? applyDelta(s, -reverse, "refund", "entry", date) : {};
+      commit({ entries, shields, ...money });
     },
 
     repairDay: (date, draft) => {
@@ -249,20 +269,30 @@ export const useStore = create<Store>((set, get) => {
 
     autoApplyShield: () => {
       const s = get();
+      const today = todayKey();
+      if (s.autoShieldCheckedOn === today) return null; // run at most once per day
+
+      const yesterday = addDays(today, -1);
+      const dayBefore = addDays(yesterday, -1);
       const missed = mostRecentMissedDay(s.entries);
-      if (!missed) return null;
+
+      // Only protect YESTERDAY, and only when a real streak ran into it
+      // (the day before yesterday is covered). Otherwise a shield would be
+      // burned on an old, streak-irrelevant gap.
+      const worthSaving = missed === yesterday && !!s.entries[dayBefore];
       const idx = s.shields.findIndex((sh) => sh.status === "available");
-      if (idx === -1) return null;
-      // only auto-protect a day adjacent to an active streak (yesterday)
-      const yesterday = todayKey();
-      void yesterday;
+      if (!worthSaving || idx === -1) {
+        commit({ autoShieldCheckedOn: today });
+        return null;
+      }
+
       const shields = s.shields.map((sh, i) =>
         i === idx ? { ...sh, status: "used" as const, usedOnDate: missed } : sh,
       );
       const entries = { ...s.entries };
-      entries[missed] = makeRecoveryEntry(missed, "shielded", { tags: ["shielded", "auto"] });
-      commit({ entries, shields });
-      return missed;
+      entries[missed!] = makeRecoveryEntry(missed!, "shielded", { tags: ["shielded", "auto"] });
+      commit({ entries, shields, autoShieldCheckedOn: today });
+      return missed!;
     },
 
     buyItem: (itemId) => {
@@ -323,6 +353,7 @@ export const useStore = create<Store>((set, get) => {
 
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
+    markReminderFired: () => commit({ lastReminderOn: todayKey() }),
 
     reset: () => {
       clearState();
@@ -387,7 +418,7 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
   if (factsRead >= 5) earn("facts_5");
   if (factsRead >= FACTS.length) earn("facts_all");
   if (owned >= 1) earn("shopper");
-  if (s.wallet.balance >= 500) earn("rich");
+  if (s.wallet.lifetimeEarned >= 500) earn("rich");
   if (equippedCats.has("theme") && equippedCats.has("frame") && equippedCats.has("mascot_accessory"))
     earn("decorator");
 
@@ -400,9 +431,11 @@ function stripState(s: Store): AppState {
   const {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
+    autoShieldCheckedOn, lastReminderOn,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
+    autoShieldCheckedOn, lastReminderOn,
   };
 }

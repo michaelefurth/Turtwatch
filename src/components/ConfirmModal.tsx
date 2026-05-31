@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { PillButton } from "./common";
 
@@ -17,18 +17,30 @@ interface Props {
 export function ConfirmModal({
   open, title, emoji, children, confirmLabel = "Confirm", confirmDisabled, onConfirm, onCancel, danger,
 }: Props) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+
   if (!open) return null;
   return (
     <div className="scrim" onClick={onCancel}>
       <motion.div
         className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
         onClick={(e) => e.stopPropagation()}
         initial={{ y: 60, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 320, damping: 30 }}
       >
-        <div className="center" style={{ fontSize: 40 }}>{emoji}</div>
-        <h2 className="center" style={{ marginTop: 6 }}>{title}</h2>
+        <div className="center" style={{ fontSize: 40 }} aria-hidden>{emoji}</div>
+        <h2 className="center" id="modal-title" style={{ marginTop: 6 }}>{title}</h2>
         <div className="stack" style={{ marginTop: 6 }}>{children}</div>
         <div className="stack mt">
           <PillButton variant={danger ? "danger" : "primary"} onClick={onConfirm} disabled={confirmDisabled}>

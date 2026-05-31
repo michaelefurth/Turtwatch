@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { TabBar } from "./TabBar";
+import { useFeedback } from "./feedback";
 import { useStore } from "@/store/useStore";
 import { themeById } from "@/data/shopItems";
+import { useReminders } from "@/hooks/useReminders";
 
 /** Decorative pond background — drifting bubbles + ripples. */
 function PondDecor() {
@@ -35,6 +37,15 @@ function PondDecor() {
 export function AppShell() {
   const themeId = useStore((s) => s.profile.themeId);
   const loc = useLocation();
+  const { toast } = useFeedback();
+  useReminders();
+
+  // surface persistence failures (e.g. storage quota from large photos)
+  useEffect(() => {
+    const onErr = () => toast("Couldn't save — storage is full 😬", "💾");
+    window.addEventListener("turtwatch:storage-error", onErr);
+    return () => window.removeEventListener("turtwatch:storage-error", onErr);
+  }, [toast]);
 
   // apply theme palette as CSS custom properties
   useEffect(() => {

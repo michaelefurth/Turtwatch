@@ -77,7 +77,7 @@ export function Mascot({ mascot, mood = "happy", size = 120, accessory, wave }: 
         <path d={mouth} transform="translate(60,48)" stroke="#3a4a3f" strokeWidth="2.4" fill="none" strokeLinecap="round" />
       </svg>
       {accessory && ACC_EMOJI[accessory] && (
-        <span style={{ position: "absolute", left: "50%", top: ACC_EMOJI[accessory].top, transform: "translateX(-50%)", fontSize: size * 0.34 }}>
+        <span aria-hidden style={{ position: "absolute", left: "50%", top: ACC_EMOJI[accessory].top, transform: "translateX(-50%)", fontSize: size * 0.34 }}>
           {ACC_EMOJI[accessory].emoji}
         </span>
       )}

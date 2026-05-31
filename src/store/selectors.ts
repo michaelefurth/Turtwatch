@@ -24,7 +24,12 @@ export function totalTurtles(entries: AppState["entries"]): number {
 }
 
 export function completionThisMonth(entries: AppState["entries"], year: number, month0: number): { done: number; days: number } {
-  const days = new Date(year, month0 + 1, 0).getDate();
+  const now = new Date();
+  const fullDays = new Date(year, month0 + 1, 0).getDate();
+  // For the current month, only count days that have actually elapsed so the
+  // percentage isn't diluted by future days the user can't have filled yet.
+  const isCurrent = now.getFullYear() === year && now.getMonth() === month0;
+  const days = isCurrent ? now.getDate() : fullDays;
   let done = 0;
   for (let d = 1; d <= days; d++) {
     const key = `${year}-${String(month0 + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { MotionConfig } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { FeedbackProvider } from "@/components/feedback";
 import { AppShell } from "@/components/AppShell";
@@ -24,8 +25,9 @@ function RequireOnboarding({ children }: { children: JSX.Element }) {
 
 export default function App() {
   return (
-    <FeedbackProvider>
-      <BrowserRouter>
+    <MotionConfig reducedMotion="user">
+      <FeedbackProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
           <Route
@@ -46,8 +48,9 @@ export default function App() {
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </FeedbackProvider>
+          </Routes>
+        </BrowserRouter>
+      </FeedbackProvider>
+    </MotionConfig>
   );
 }

@@ -152,4 +152,6 @@ export interface AppState {
   achievements: Record<string, string>; // achievementId -> earnedAt
   notifications: NotificationSettings;
   factOfDayClaimedOn?: string; // date key
+  autoShieldCheckedOn?: string; // date key — auto-shield runs at most once/day
+  lastReminderOn?: string; // date key — local reminder fired at most once/day
 }

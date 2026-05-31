@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.11.0",
     "react": "^18.3.1",

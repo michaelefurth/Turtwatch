@@ -56,9 +56,9 @@ export function CalendarScreen() {
 
       <Card>
         <div className="between" style={{ marginBottom: 10 }}>
-          <button className="chip outline" onClick={() => move(-1)}>‹</button>
+          <button className="chip outline" aria-label="Previous month" onClick={() => move(-1)}>‹</button>
           <b style={{ fontSize: 16 }}>{monthLabel(year, month0)}</b>
-          <button className="chip outline" onClick={() => move(1)}>›</button>
+          <button className="chip outline" aria-label="Next month" onClick={() => move(1)}>›</button>
         </div>
 
         <div className="cal-head">
@@ -70,19 +70,21 @@ export function CalendarScreen() {
             const st = dayState(key);
             const e = entries[key];
             const dnum = Number(key.split("-")[2]);
-            const cls = st === "today" ? "today st-completed" : `st-${st}`;
+            const cls = st === "today" ? "st-today" : `st-${st}`;
             const future = st === "future";
             const target = e ? `/day/${key}` : future ? null : st === "today" ? "/upload" : `/repair/${key}`;
+            const stateLabel = e ? e.state : st;
             return (
               <button
                 key={i}
                 className={`day ${cls} ${future ? "future" : ""} ${key === today ? "today" : ""}`}
                 onClick={() => target && nav(target)}
                 disabled={future}
+                aria-label={`${monthLabel(year, month0).split(" ")[0]} ${dnum} — ${stateLabel}`}
               >
-                {e?.photoUrl && <img src={e.photoUrl} alt="" />}
+                {e?.photoUrl && <img src={e.photoUrl} alt="" aria-hidden />}
                 <span className="dnum overlay" style={e?.photoUrl ? undefined : { color: "inherit" }}>{dnum}</span>
-                <span className="ic overlay" style={e?.photoUrl ? undefined : { color: "inherit", textShadow: "none" }}>
+                <span className="ic overlay" aria-hidden style={e?.photoUrl ? undefined : { color: "inherit", textShadow: "none" }}>
                   {e ? STATE_ICON[e.state] : st === "missed" ? STATE_ICON.missed : ""}
                 </span>
               </button>
@@ -93,10 +95,10 @@ export function CalendarScreen() {
 
       <Card className="flat">
         <div className="between">
-          <b>This month</b>
-          <span className="chip">{done}/{days} days · {Math.round((done / days) * 100)}%</span>
+          <b>{monthLabel(year, month0).split(" ")[0]}</b>
+          <span className="chip">{done}/{days} days · {days ? Math.round((done / days) * 100) : 0}%</span>
         </div>
-        <div className="progress mt-sm"><div style={{ width: `${(done / days) * 100}%` }} /></div>
+        <div className="progress mt-sm"><div style={{ width: `${days ? (done / days) * 100 : 0}%` }} /></div>
       </Card>
 
       <div className="legend">

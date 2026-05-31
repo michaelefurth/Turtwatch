@@ -25,5 +25,9 @@ export function makeInitialState(): AppState {
       streakRiskEnabled: true,
       factOfDayEnabled: false,
     },
+    // explicit so reset() (a shallow merge) clears any prior values
+    factOfDayClaimedOn: undefined,
+    autoShieldCheckedOn: undefined,
+    lastReminderOn: undefined,
   };
 }

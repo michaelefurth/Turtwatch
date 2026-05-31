@@ -68,7 +68,9 @@ export function EntryDetail() {
       {entry.earnedTurtbux > 0 && <span className="chip gold" style={{ alignSelf: "flex-start" }}>Earned +{entry.earnedTurtbux} 🪙</span>}
 
       <div className="stack mt">
-        {date === todayKey() && <PillButton variant="secondary" onClick={() => nav("/upload")}>✏️ Edit today's turtle</PillButton>}
+        <PillButton variant="secondary" onClick={() => nav(date === todayKey() ? "/upload" : `/upload?date=${date}`)}>
+          ✏️ Edit {date === todayKey() ? "today's turtle" : "entry"}
+        </PillButton>
         <PillButton variant="danger" onClick={() => setConfirmDel(true)}>🗑️ Delete entry</PillButton>
       </div>
 

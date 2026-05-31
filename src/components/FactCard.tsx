@@ -22,9 +22,15 @@ export function FactCard({ fact, read, onRead }: { fact: TurtleFact; read: boole
   };
 
   return (
-    <div className="card tight" style={{ background: `color-mix(in srgb, ${color} 22%, var(--surface))`, position: "relative" }} onClick={flip}>
+    <button
+      type="button"
+      className="card tight"
+      onClick={flip}
+      aria-label={`${fact.title} — ${read ? "read" : "unread"}, tap to flip`}
+      style={{ background: `color-mix(in srgb, ${color} 22%, var(--surface))`, position: "relative", textAlign: "left", border: "none", width: "100%", font: "inherit", color: "inherit", cursor: "pointer" }}
+    >
       {!read && (
-        <span style={{ position: "absolute", top: 8, right: 10, fontSize: 16 }} title="Unread">✨</span>
+        <span aria-hidden style={{ position: "absolute", top: 8, right: 10, fontSize: 16 }} title="Unread">✨</span>
       )}
       <AnimatePresence mode="wait">
         {!flipped ? (
@@ -40,6 +46,6 @@ export function FactCard({ fact, read, onRead }: { fact: TurtleFact; read: boole
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </button>
   );
 }

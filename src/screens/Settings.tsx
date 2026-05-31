@@ -7,10 +7,15 @@ import { Card, PillButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { THEMES } from "@/data/shopItems";
 import { exportState } from "@/store/persistence";
+import { requestNotificationPermission, notificationPermission, notificationsSupported } from "@/lib/notifications";
 import type { Mascot as MascotType } from "@/types";
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return <button className={`chip ${on ? "selected" : "outline"}`} onClick={onClick}>{on ? "On" : "Off"}</button>;
+  return (
+    <button className={`chip ${on ? "selected" : "outline"}`} aria-pressed={on} onClick={onClick}>
+      {on ? "On" : "Off"}
+    </button>
+  );
 }
 
 export function Settings() {
@@ -85,7 +90,26 @@ export function Settings() {
 
       <Card className="stack">
         <h3 style={{ margin: 0 }}>Notifications</h3>
-        <div className="between"><span>Daily reminder</span><Toggle on={notifications.dailyReminderEnabled} onClick={() => updateNotifications({ dailyReminderEnabled: !notifications.dailyReminderEnabled })} /></div>
+        <div className="between">
+          <span>Daily reminder</span>
+          <Toggle
+            on={notifications.dailyReminderEnabled}
+            onClick={async () => {
+              const next = !notifications.dailyReminderEnabled;
+              updateNotifications({ dailyReminderEnabled: next });
+              if (next) {
+                const perm = await requestNotificationPermission();
+                if (perm !== "granted") toast("Allow notifications in your browser to get reminders", "🔔");
+              }
+            }}
+          />
+        </div>
+        {!notificationsSupported() && (
+          <span className="muted" style={{ fontSize: 12 }}>This browser doesn't support notifications.</span>
+        )}
+        {notificationsSupported() && notifications.dailyReminderEnabled && notificationPermission() !== "granted" && (
+          <span className="muted" style={{ fontSize: 12 }}>⚠️ Permission not granted — reminders won't show until you allow them.</span>
+        )}
         {notifications.dailyReminderEnabled && (
           <div className="between"><span>Reminder time</span><input className="input" style={{ width: 130 }} type="time" value={notifications.reminderTime} onChange={(e) => updateNotifications({ reminderTime: e.target.value })} /></div>
         )}
