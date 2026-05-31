@@ -1,0 +1,155 @@
+// TurtWatch domain types — mirror of docs/04-data-model.md.
+// These are platform-agnostic and shared by web prototype and (future) RN app.
+
+export type Mascot = "turtley" | "shelldon";
+
+export type EntryState = "completed" | "repaired" | "ai_rescued" | "shielded";
+
+/** Calendar-cell states (includes derived states not stored as entries). */
+export type DayState = EntryState | "missed" | "today" | "future" | "blank";
+
+export type PhotoSource = "camera" | "library" | "sample" | "ai";
+
+export type Mood = "happy" | "sleepy" | "derpy" | "majestic" | "shy" | "hungry";
+
+export type LedgerReason =
+  | "upload"
+  | "streak_bonus"
+  | "milestone"
+  | "note_bonus"
+  | "meta_bonus"
+  | "challenge"
+  | "fact_read"
+  | "fact_of_day"
+  | "repair"
+  | "ai_rescue"
+  | "shield_buy"
+  | "shop_purchase"
+  | "onboarding_gift"
+  | "refund"
+  | "admin";
+
+export interface LedgerEntry {
+  id: string;
+  delta: number; // + earn / - spend
+  reason: LedgerReason;
+  refType?: string;
+  refId?: string;
+  balanceAfter: number;
+  createdAt: string; // ISO
+}
+
+export interface TurtleEntry {
+  id: string;
+  date: string; // local date key YYYY-MM-DD (unique per user)
+  state: EntryState;
+  photoUrl?: string;
+  photoSource?: PhotoSource;
+  turtleName?: string;
+  mood?: Mood;
+  notes?: string;
+  tags: string[];
+  location?: { lat?: number; lng?: number; label: string };
+  earnedTurtbux: number;
+  /** which one-time bonuses have already been paid for this entry */
+  bonuses: { note?: boolean; meta?: boolean };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ShieldStatus = "available" | "used";
+export interface ShellShield {
+  id: string;
+  status: ShieldStatus;
+  acquiredAt: string;
+  usedOnDate?: string;
+}
+
+export type FactCategory = "biology" | "history" | "record" | "silly" | "care";
+export type Rarity = "common" | "rare" | "legendary";
+export interface TurtleFact {
+  id: string;
+  title: string;
+  body: string;
+  category: FactCategory;
+  emoji: string;
+  rarity: Rarity;
+  reward: number;
+}
+
+export type ShopCategory =
+  | "theme"
+  | "sticker"
+  | "frame"
+  | "mascot_accessory"
+  | "shield"
+  | "recovery";
+
+export interface ShopItem {
+  id: string;
+  category: ShopCategory;
+  name: string;
+  description: string;
+  price: number;
+  emoji: string;
+  consumable: boolean;
+  premiumOnly?: boolean;
+  /** for theme items: the palette applied when equipped */
+  theme?: ThemePalette;
+}
+
+export interface ThemePalette {
+  id: string;
+  name: string;
+  bg: string;
+  surface: string;
+  primary: string;
+  primaryDeep: string;
+  accent: string;
+  text: string;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+}
+
+export interface NotificationSettings {
+  dailyReminderEnabled: boolean;
+  reminderTime: string; // "HH:mm"
+  streakRiskEnabled: boolean;
+  factOfDayEnabled: boolean;
+}
+
+export interface UserProfile {
+  displayName: string;
+  mascot: Mascot;
+  mascotName?: string;
+  themeId: string;
+  timezone: string;
+  isPremium: boolean;
+  createdAt: string;
+}
+
+export interface Wallet {
+  balance: number;
+  lifetimeEarned: number;
+  lifetimeSpent: number;
+}
+
+/** The full persisted app state. */
+export interface AppState {
+  onboarded: boolean;
+  profile: UserProfile;
+  wallet: Wallet;
+  ledger: LedgerEntry[];
+  entries: Record<string, TurtleEntry>; // keyed by date
+  shields: ShellShield[];
+  factsRead: Record<string, string>; // factId -> readAt ISO
+  inventory: Record<string, { equipped: boolean; acquiredAt: string }>; // itemId -> ...
+  achievements: Record<string, string>; // achievementId -> earnedAt
+  notifications: NotificationSettings;
+  factOfDayClaimedOn?: string; // date key
+}

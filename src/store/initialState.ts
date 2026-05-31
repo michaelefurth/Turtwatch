@@ -1,0 +1,29 @@
+import type { AppState } from "@/types";
+
+export function makeInitialState(): AppState {
+  return {
+    onboarded: false,
+    profile: {
+      displayName: "Pond Keeper",
+      mascot: "turtley",
+      mascotName: "Turtley",
+      themeId: "pond_mint",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+      isPremium: false,
+      createdAt: new Date().toISOString(),
+    },
+    wallet: { balance: 0, lifetimeEarned: 0, lifetimeSpent: 0 },
+    ledger: [],
+    entries: {},
+    shields: [],
+    factsRead: {},
+    inventory: {},
+    achievements: {},
+    notifications: {
+      dailyReminderEnabled: true,
+      reminderTime: "19:00",
+      streakRiskEnabled: true,
+      factOfDayEnabled: false,
+    },
+  };
+}
