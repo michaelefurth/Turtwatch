@@ -30,6 +30,7 @@ export function makeInitialState(): AppState {
     autoShieldCheckedOn: undefined,
     lastReminderOn: undefined,
     game: undefined,
+    mantra: undefined,
     cloud: { autoBackup: false },
   };
 }

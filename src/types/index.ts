@@ -27,6 +27,7 @@ export type LedgerReason =
   | "shop_purchase"
   | "onboarding_gift"
   | "minigame"
+  | "mantra"
   | "refund"
   | "admin";
 
@@ -157,6 +158,8 @@ export interface AppState {
   lastReminderOn?: string; // date key — local reminder fired at most once/day
   /** daily Turtbux earned from the mini-game (capped per day) */
   game?: { date: string; earned: number };
+  /** daily Turtbux earned from mantra focus sessions (capped per day) */
+  mantra?: { date: string; earned: number };
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }

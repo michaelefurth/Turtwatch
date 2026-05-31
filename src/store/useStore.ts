@@ -14,6 +14,7 @@ import { loadState, saveState, clearState } from "./persistence";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { uploadReward, ONBOARDING_GIFT, FACT_OF_DAY } from "@/logic/turtbux";
 import { remainingGameReward } from "@/logic/flipgame";
+import { remainingMantraReward } from "@/logic/mantras";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
 import { generateAiTurtle } from "@/data/sampleTurtles";
@@ -55,6 +56,7 @@ interface Actions {
   readFact: (factId: string) => number; // turtbux awarded (0 if already read)
   claimFactOfDay: () => number;
   awardGameReward: (amount: number) => number; // returns Turtbux actually awarded
+  awardMantraReward: (amount: number) => number;
   updateNotifications: (n: Partial<NotificationSettings>) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
   markReminderFired: () => void;
@@ -384,6 +386,20 @@ export const useStore = create<Store>((set, get) => {
       return award;
     },
 
+    awardMantraReward: (amount) => {
+      const s = get();
+      const today = todayKey();
+      const earnedToday = s.mantra?.date === today ? s.mantra.earned : 0;
+      const award = remainingMantraReward(earnedToday, amount);
+      if (award <= 0) {
+        commit({ mantra: { date: today, earned: earnedToday } });
+        return 0;
+      }
+      const money = applyDelta(s, award, "mantra", "mantra");
+      commit({ mantra: { date: today, earned: earnedToday + award }, ...money });
+      return award;
+    },
+
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
     markReminderFired: () => commit({ lastReminderOn: todayKey() }),
@@ -476,11 +492,11 @@ function stripState(s: Store): AppState {
   const {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, cloud,
+    autoShieldCheckedOn, lastReminderOn, game, mantra, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, cloud,
+    autoShieldCheckedOn, lastReminderOn, game, mantra, cloud,
   };
 }
