@@ -61,9 +61,15 @@ export function Account() {
   const doSignUp = () =>
     run(async () => {
       await cloud.signUp(email.trim(), password);
-      setUser(cloud.currentUser());
-      setCloud({ email: email.trim() });
-      toast("Account created! 🐢", "🎉");
+      const u = cloud.currentUser();
+      setUser(u);
+      if (u) {
+        setCloud({ email: email.trim() });
+        toast("Account created! 🐢", "🎉");
+      } else {
+        // email confirmation required — no session yet
+        toast("Almost there — check your email to confirm 📧", "🐢");
+      }
     });
 
   const doSignIn = () =>
@@ -91,7 +97,8 @@ export function Account() {
         return;
       }
       hydrate(remote);
-      setCloud({ email: user?.email ?? email.trim() });
+      // keep THIS device's cloud preferences; don't inherit the snapshot's
+      setCloud({ autoBackup: cloudMeta?.autoBackup ?? false, email: user?.email ?? email.trim(), lastBackupAt: undefined });
       toast("Restored your turtles! 🐢", "✨");
       nav("/");
     });
@@ -100,9 +107,11 @@ export function Account() {
     run(async () => {
       await cloud.signOut();
       setUser(null);
-      setCloud({ email: undefined });
+      setCloud({ autoBackup: false, email: undefined, lastBackupAt: undefined });
       toast("Signed out", "👋");
     });
+
+  const localCount = Object.keys(useStore.getState().entries).length;
 
   return (
     <div className="screen stack">
@@ -165,7 +174,9 @@ export function Account() {
         onCancel={() => setConfirmRestore(false)}
         onConfirm={doRestore}
       >
-        <p className="center muted" style={{ margin: 0 }}>This replaces the turtles on this device with your cloud backup.</p>
+        <p className="center muted" style={{ margin: 0 }}>
+          This replaces the {localCount} turtle{localCount === 1 ? "" : "s"} on this device with your cloud backup. Local-only changes will be lost.
+        </p>
       </ConfirmModal>
     </div>
   );

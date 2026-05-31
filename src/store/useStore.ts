@@ -126,6 +126,8 @@ export const useStore = create<Store>((set, get) => {
     saveTodayEntry: (draft) => {
       const s = get();
       const date = todayKey();
+      // never overwrite (and re-award) an existing entry — route edits to updateEntry
+      if (s.entries[date]) return get().updateEntry(date, draft);
       const entries = { ...s.entries };
       const entry: TurtleEntry = {
         id: uid(),
@@ -312,8 +314,9 @@ export const useStore = create<Store>((set, get) => {
       const s = get();
       const item = shopItemById(itemId);
       if (!item) return { ok: false, reason: "Unknown item." };
-      // a daily-deal price override can only ever lower the price, never raise it
-      const price = priceOverride != null ? Math.min(priceOverride, item.price) : item.price;
+      // a daily-deal price override can only lower the price (never raise it, and
+      // never below 1 — prevents free/negative purchases from any caller)
+      const price = priceOverride != null ? Math.max(1, Math.min(priceOverride, item.price)) : item.price;
       if (item.id === "buy_shield") {
         if (s.wallet.balance < price) return { ok: false, reason: "Not enough Turtbux." };
         const shields = [...s.shields, { id: uid(), status: "available" as const, acquiredAt: nowIso() }];
@@ -375,28 +378,26 @@ export const useStore = create<Store>((set, get) => {
     awardGameReward: (amount) => {
       const s = get();
       const today = todayKey();
+      const gamesWon = (s.gamesWon ?? 0) + 1;
       const earnedToday = s.game?.date === today ? s.game.earned : 0;
       const award = remainingGameReward(earnedToday, amount);
-      if (award <= 0) {
-        commit({ game: { date: today, earned: earnedToday } });
-        return 0;
-      }
-      const money = applyDelta(s, award, "minigame", "flipgame");
-      commit({ game: { date: today, earned: earnedToday + award }, ...money });
+      const money = award > 0 ? applyDelta(s, award, "minigame", "flipgame") : {};
+      const game = { date: today, earned: earnedToday + award };
+      const { achievements } = evaluate({ ...s, gamesWon, game, ...money });
+      commit({ gamesWon, game, achievements, ...money });
       return award;
     },
 
     awardMantraReward: (amount) => {
       const s = get();
       const today = todayKey();
+      const mantrasFocused = (s.mantrasFocused ?? 0) + 1;
       const earnedToday = s.mantra?.date === today ? s.mantra.earned : 0;
       const award = remainingMantraReward(earnedToday, amount);
-      if (award <= 0) {
-        commit({ mantra: { date: today, earned: earnedToday } });
-        return 0;
-      }
-      const money = applyDelta(s, award, "mantra", "mantra");
-      commit({ mantra: { date: today, earned: earnedToday + award }, ...money });
+      const money = award > 0 ? applyDelta(s, award, "mantra", "mantra") : {};
+      const mantra = { date: today, earned: earnedToday + award };
+      const { achievements } = evaluate({ ...s, mantrasFocused, mantra, ...money });
+      commit({ mantrasFocused, mantra, achievements, ...money });
       return award;
     },
 
@@ -482,6 +483,10 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
   if (s.wallet.lifetimeEarned >= 500) earn("rich");
   if (equippedCats.has("theme") && equippedCats.has("frame") && equippedCats.has("mascot_accessory"))
     earn("decorator");
+  if ((s.gamesWon ?? 0) >= 1) earn("first_flip");
+  if ((s.gamesWon ?? 0) >= 10) earn("flip_master");
+  if ((s.mantrasFocused ?? 0) >= 1) earn("first_mantra");
+  if ((s.mantrasFocused ?? 0) >= 25) earn("zen_master");
 
   void ACHIEVEMENTS;
   return { achievements, newAchievements: newly };
@@ -492,11 +497,11 @@ function stripState(s: Store): AppState {
   const {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, mantra, cloud,
+    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, mantra, cloud,
+    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, cloud,
   };
 }

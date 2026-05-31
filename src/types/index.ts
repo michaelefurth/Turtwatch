@@ -160,6 +160,9 @@ export interface AppState {
   game?: { date: string; earned: number };
   /** daily Turtbux earned from mantra focus sessions (capped per day) */
   mantra?: { date: string; earned: number };
+  /** lifetime counts for profile stats + achievements */
+  gamesWon?: number;
+  mantrasFocused?: number;
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }

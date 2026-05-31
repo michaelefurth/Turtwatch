@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { useStore } from "@/store/useStore";
@@ -18,7 +19,7 @@ import { FactsLibrary } from "@/screens/FactsLibrary";
 import { Profile } from "@/screens/Profile";
 import { Settings } from "@/screens/Settings";
 
-function RequireOnboarding({ children }: { children: JSX.Element }) {
+function RequireOnboarding({ children }: { children: ReactElement }) {
   const onboarded = useStore((s) => s.onboarded);
   const loc = useLocation();
   if (!onboarded && loc.pathname !== "/onboarding") {

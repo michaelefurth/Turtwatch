@@ -33,6 +33,47 @@ describe("store: delete reverses rewards (anti-farm)", () => {
   });
 });
 
+describe("store: mini-game & mantra rewards", () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it("tracks lifetime games and unlocks the flip achievement", () => {
+    useStore.getState().awardGameReward(6);
+    expect(useStore.getState().gamesWon).toBe(1);
+    expect(useStore.getState().achievements.first_flip).toBeTruthy();
+  });
+
+  it("tracks lifetime mantras and unlocks the mantra achievement", () => {
+    useStore.getState().awardMantraReward(2);
+    expect(useStore.getState().mantrasFocused).toBe(1);
+    expect(useStore.getState().achievements.first_mantra).toBeTruthy();
+  });
+
+  it("caps daily game Turtbux but still counts the win", () => {
+    // first win awards up to the cap; a huge amount is clamped
+    const got = useStore.getState().awardGameReward(999);
+    expect(got).toBeLessThanOrEqual(30);
+    const before = useStore.getState().wallet.balance;
+    useStore.getState().awardGameReward(999); // cap already hit → 0 Turtbux
+    expect(useStore.getState().wallet.balance).toBe(before);
+    expect(useStore.getState().gamesWon).toBe(2); // but the play still counts
+  });
+});
+
+describe("store: saveTodayEntry never overwrites", () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it("re-saving today routes through update (no double base reward)", () => {
+    useStore.getState().completeOnboarding({});
+    useStore.getState().saveTodayEntry({ photoUrl: "x", photoSource: "sample" });
+    const afterFirst = useStore.getState().wallet.balance;
+    const entryId = useStore.getState().entries[todayKey()].id;
+    useStore.getState().saveTodayEntry({ photoUrl: "y", photoSource: "sample", notes: "a longer note here" });
+    // same entry (updated), and no second base upload reward
+    expect(useStore.getState().entries[todayKey()].id).toBe(entryId);
+    expect(useStore.getState().wallet.balance).toBe(afterFirst + 3); // only the note bonus
+  });
+});
+
 describe("store: autoApplyShield adjacency guard", () => {
   beforeEach(() => useStore.getState().reset());
 

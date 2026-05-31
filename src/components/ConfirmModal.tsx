@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import { PillButton } from "./common";
 
@@ -17,10 +17,34 @@ interface Props {
 export function ConfirmModal({
   open, title, emoji, children, confirmLabel = "Confirm", confirmDisabled, onConfirm, onCancel, danger,
 }: Props) {
+  const sheetRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
+    // move focus into the dialog
+    const focusables = () =>
+      Array.from(sheetRef.current?.querySelectorAll<HTMLElement>("button:not([disabled])") ?? []);
+    focusables()[0]?.focus();
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") {
+        onCancel();
+        return;
+      }
+      if (e.key === "Tab") {
+        const items = focusables();
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -30,6 +54,7 @@ export function ConfirmModal({
   return (
     <div className="scrim" onClick={onCancel}>
       <motion.div
+        ref={sheetRef}
         className="sheet"
         role="dialog"
         aria-modal="true"

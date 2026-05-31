@@ -23,13 +23,15 @@ export function useCloudAutoBackup() {
         const cur = getPersistableState();
         const curSig = cloud.contentSignature(cur);
         if (curSig === sigRef.current) return;
-        sigRef.current = curSig;
         try {
           const snap = await cloud.backup(cur);
+          // advance the signature only AFTER a successful backup, so a failed
+          // attempt is retried on the next change instead of being lost
+          sigRef.current = curSig;
           useStore.getState().hydrateState(snap);
           useStore.getState().setCloud({ lastBackupAt: new Date().toISOString() });
         } catch {
-          /* offline / transient — try again on next change */
+          /* offline / transient — sigRef unchanged, retry on next change */
         }
       }, 5000);
     });

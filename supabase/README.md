@@ -43,6 +43,8 @@ create policy "own turtle uploads" on storage.objects for insert to authenticate
   with check (bucket_id = 'turtles' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "own turtle updates" on storage.objects for update to authenticated
   using (bucket_id = 'turtles' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "own turtle deletes" on storage.objects for delete to authenticated
+  using (bucket_id = 'turtles' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "public turtle reads" on storage.objects for select using (bucket_id = 'turtles');
 ```
 

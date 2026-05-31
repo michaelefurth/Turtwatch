@@ -84,6 +84,25 @@ export function EmptyState({ emoji, title, sub }: { emoji: string; title: string
   );
 }
 
+/** A turtle photo with an optional equipped frame class + sticker overlay. */
+export function TurtlePhoto({
+  src, frameClass = "", sticker, size, radius = 16, style,
+}: {
+  src: string;
+  frameClass?: string;
+  sticker?: string;
+  size?: number;
+  radius?: number;
+  style?: CSSProperties;
+}) {
+  return (
+    <span className="photo-wrap" style={{ width: size, ...style }}>
+      <img src={src} alt="" aria-hidden className={frameClass} style={{ width: size ?? "100%", height: size, aspectRatio: size ? undefined : "1", objectFit: "cover", borderRadius: radius, display: "block" }} />
+      {sticker && <span className="sticker-badge" aria-hidden>{sticker}</span>}
+    </span>
+  );
+}
+
 export function formatNum(n: number): string {
   if (n >= 10000) return `${(n / 1000).toFixed(1)}k`;
   return n.toLocaleString();

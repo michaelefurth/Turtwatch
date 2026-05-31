@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
-import { Card, PillButton, StateBadge } from "@/components/common";
+import { Card, PillButton, StateBadge, TurtlePhoto } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { moodEmoji } from "@/components/MoodPicker";
 import { prettyDate, todayKey } from "@/logic/dates";
 import { computeStreak } from "@/logic/streak";
-import { equippedFrame } from "@/store/selectors";
+import { STICKER_EMOJI } from "@/data/shopItems";
+import { equippedFrame, equippedSticker } from "@/store/selectors";
 
 export function EntryDetail() {
   const { date = "" } = useParams();
@@ -35,6 +36,7 @@ export function EntryDetail() {
   }
 
   const frameClass = equippedFrame(inventory) ?? "";
+  const sticker = STICKER_EMOJI[equippedSticker(inventory) ?? ""];
 
   return (
     <div className="screen stack">
@@ -48,7 +50,7 @@ export function EntryDetail() {
 
       <Card className="center">
         {entry.photoUrl ? (
-          <img src={entry.photoUrl} alt="turtle" className={frameClass} style={{ width: "84%", borderRadius: 18, aspectRatio: "1", objectFit: "cover" }} />
+          <TurtlePhoto src={entry.photoUrl} frameClass={frameClass} sticker={sticker} radius={18} style={{ width: "84%" }} />
         ) : (
           <div className="center" style={{ padding: 24 }}>
             <div style={{ fontSize: 56 }}>🛡️</div>

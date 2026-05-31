@@ -220,6 +220,8 @@ label.field { display: block; font-weight: 700; font-size: 13px; margin: 0 0 6px
 .stat span { font-size: 12px; color: var(--muted); font-weight: 700; }
 .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); display: block; }
+.photo-wrap { position: relative; display: inline-block; line-height: 0; }
+.sticker-badge { position: absolute; bottom: -6px; right: -6px; font-size: 20px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25)); pointer-events: none; }
 
 /* frames */
 .frame_lilypad { box-shadow: 0 0 0 6px #bfe7c8, 0 0 0 12px #9fdcb0; }
@@ -266,6 +268,9 @@ label.field { display: block; font-weight: 700; font-size: 13px; margin: 0 0 6px
 .progress { height: 12px; border-radius: 999px; background: var(--line); overflow: hidden; }
 .progress > div { height: 100%; background: var(--primary); border-radius: 999px; transition: width 0.4s ease; }
 
+.count-ring { transition: stroke-dashoffset 1s linear; }
+
 @media (prefers-reduced-motion: reduce) {
   .bubble, .ripple, .confetti, .toast, .fish { animation: none !important; }
+  .count-ring { transition: none !important; }
 }

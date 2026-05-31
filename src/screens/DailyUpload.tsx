@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Card, PillButton } from "@/components/common";
@@ -9,7 +9,7 @@ import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
 import { ACHIEVEMENTS } from "@/data/achievements";
 import { computeStreak } from "@/logic/streak";
 import { estimateUpload } from "@/logic/turtbux";
-import { todayKey, prettyDate } from "@/logic/dates";
+import { todayKey, prettyDate, isFuture } from "@/logic/dates";
 import { fileToStorableDataUrl } from "@/lib/image";
 import { generateTurtleName } from "@/data/turtleNames";
 import type { Mood, PhotoSource } from "@/types";
@@ -82,6 +82,11 @@ export function DailyUpload() {
     });
     nav(isEditing && date !== today ? `/day/${date}` : "/");
   };
+
+  // Creating is only valid for today. A past date with no entry → repair flow.
+  if (!isEditing && date !== today) {
+    return <Navigate to={isFuture(date) ? "/calendar" : `/repair/${date}`} replace />;
+  }
 
   return (
     <div className="screen stack">

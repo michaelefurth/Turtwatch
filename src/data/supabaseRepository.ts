@@ -143,6 +143,14 @@ export class SupabaseRepository implements TurtwatchRepository {
     const uid = await this.requireUser();
     const { error } = await this.db.from("turtle_entry").delete().eq("user_id", uid).eq("entry_date", date);
     if (error) throw error;
+    // best-effort: remove the photo from storage so it doesn't orphan (needs the
+    // delete policy in supabase/README.md)
+    try {
+      const { SupabaseImageStorage } = await import("@/lib/storage/supabaseStorage");
+      await new SupabaseImageStorage().remove(`${uid}/${date}`);
+    } catch {
+      /* ignore */
+    }
   }
 
   async repairDay(date: string, draft: EntryDraft) {

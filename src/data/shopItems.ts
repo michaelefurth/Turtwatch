@@ -54,6 +54,13 @@ export function dailyDeal(dateKey: string): { item: ShopItem; price: number } {
   return { item, price };
 }
 
+/** Representative sticker emoji shown on entry photos when a pack is equipped. */
+export const STICKER_EMOJI: Record<string, string> = {
+  sticker_pond: "🐸",
+  sticker_party: "🎉",
+  sticker_food: "🍓",
+};
+
 export function shopItemById(id: string): ShopItem | undefined {
   return SHOP_ITEMS.find((i) => i.id === id);
 }

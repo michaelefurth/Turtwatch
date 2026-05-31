@@ -20,6 +20,7 @@ export function Mantras() {
   const [running, setRunning] = useState(false);
   const [focused, setFocused] = useState(0); // completed this session
   const tick = useRef<ReturnType<typeof setInterval> | null>(null);
+  const doneRef = useRef(false); // guards reward against double-fire / pause-at-zero
 
   const mantra = list[idx % list.length];
   const earnedToday = mantraState?.date === todayKey() ? mantraState.earned : 0;
@@ -36,16 +37,21 @@ export function Mantras() {
     return () => { if (tick.current) clearInterval(tick.current); };
   }, [running]);
 
-  // on completion: reward + advance
+  // on completion: reward + advance. Uses a ref (not `running`) so pausing at the
+  // last second still pays out, and StrictMode's double-invoke can't double-award.
   useEffect(() => {
-    if (remaining !== 0 || !running) return;
+    if (remaining !== 0) {
+      doneRef.current = false;
+      return;
+    }
+    if (doneRef.current) return;
+    doneRef.current = true;
     const reward = award(MANTRA_REWARD);
-    if (reward > 0) toast(`+${reward} Turtbux · breathe 🌿`, "🧘");
+    toast(reward > 0 ? `+${reward} Turtbux · breathe 🌿` : "Daily focus reward maxed — stay a while 🌿", "🧘");
     setFocused((f) => f + 1);
     setIdx((i) => i + 1);
     setRemaining(duration);
-    // keep the session flowing
-  }, [remaining, running, award, toast, duration]);
+  }, [remaining, award, toast, duration]);
 
   const startPause = () => {
     if (remaining === 0) setRemaining(duration);
@@ -57,12 +63,12 @@ export function Mantras() {
   };
   const pickDuration = (d: number) => {
     setDuration(d);
-    if (!running) setRemaining(d);
+    setRemaining(d); // always restart the countdown at the new length
   };
 
   const r = 70;
   const c = 2 * Math.PI * r;
-  const pct = duration > 0 ? remaining / duration : 0;
+  const pct = duration > 0 ? Math.min(1, remaining / duration) : 0;
 
   return (
     <div className="screen stack">
@@ -80,10 +86,10 @@ export function Mantras() {
           <svg width="176" height="176" aria-hidden>
             <circle cx="88" cy="88" r={r} fill="none" stroke="var(--line)" strokeWidth="12" />
             <circle
+              className="count-ring"
               cx="88" cy="88" r={r} fill="none" transform="rotate(-90 88 88)"
               stroke="var(--primary)" strokeWidth="12" strokeLinecap="round"
               strokeDasharray={c} strokeDashoffset={c - c * pct}
-              style={{ transition: "stroke-dashoffset 1s linear" }}
             />
           </svg>
           <motion.div

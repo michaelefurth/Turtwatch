@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
-import { Card, StateBadge, EmptyState } from "@/components/common";
+import { Card, StateBadge, EmptyState, TurtlePhoto } from "@/components/common";
 import { moodEmoji, MOODS } from "@/components/MoodPicker";
 import { prettyDate } from "@/logic/dates";
-import { distinctTurtleNames, equippedFrame } from "@/store/selectors";
+import { STICKER_EMOJI } from "@/data/shopItems";
+import { distinctTurtleNames, equippedFrame, equippedSticker } from "@/store/selectors";
 import type { Mood } from "@/types";
 
 export function Feed() {
@@ -12,6 +13,7 @@ export function Feed() {
   const entries = useStore((s) => s.entries);
   const inventory = useStore((s) => s.inventory);
   const frame = equippedFrame(inventory) ?? "";
+  const sticker = STICKER_EMOJI[equippedSticker(inventory) ?? ""];
 
   const [q, setQ] = useState("");
   const [mood, setMood] = useState<Mood | "all">("all");
@@ -76,7 +78,7 @@ export function Feed() {
             <Card key={e.date} className="tight" onClick={() => nav(`/day/${e.date}`)}>
               <div className="row" style={{ alignItems: "center" }}>
                 {e.photoUrl ? (
-                  <img src={e.photoUrl} alt="" aria-hidden className={frame} style={{ width: 64, height: 64, borderRadius: 14, objectFit: "cover", flexShrink: 0 }} />
+                  <TurtlePhoto src={e.photoUrl} frameClass={frame} sticker={sticker} size={64} radius={14} style={{ flexShrink: 0 }} />
                 ) : (
                   <div style={{ width: 64, height: 64, borderRadius: 14, background: "var(--line)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, flexShrink: 0 }}>🛡️</div>
                 )}

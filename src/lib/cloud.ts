@@ -81,7 +81,9 @@ export async function backup(state: AppState): Promise<AppState> {
       entries[date] = { ...e, photoUrl: url };
     }
   }
-  const snapshot: AppState = { ...state, entries };
+  // `cloud` is device-local metadata (auto-backup pref, last-backup time) — never
+  // serialize it, so it can't bleed across devices on restore.
+  const snapshot: AppState = { ...state, entries, cloud: undefined };
   const { error } = await sb
     .from("user_state")
     .upsert({ user_id: user.id, state: snapshot, updated_at: new Date().toISOString() });
@@ -101,12 +103,27 @@ export async function restore(): Promise<AppState | null> {
     .eq("user_id", user.id)
     .maybeSingle();
   if (error) throw error;
-  return (data?.state as AppState | undefined) ?? null;
+  const remote = data?.state as AppState | undefined;
+  if (!remote) return null;
+  // sanity-check the shape before handing it to the store (guards against drift)
+  if (!remote.profile || !remote.wallet || typeof remote.entries !== "object") {
+    throw new Error("Cloud backup looks corrupted or from an old version.");
+  }
+  return remote;
 }
 
-/** A cheap content signature to detect whether a backup is worth doing. */
+/**
+ * A content signature to detect whether a backup is worth doing. Includes a
+ * cheap fold over entry updated-at stamps so metadata-only edits (notes, mood,
+ * tags) also trigger auto-backup.
+ */
 export function contentSignature(s: AppState): string {
-  return `${s.ledger.length}:${Object.keys(s.entries).length}:${Object.keys(s.inventory).length}:${s.wallet.balance}`;
+  let h = 0;
+  for (const e of Object.values(s.entries)) {
+    const u = e.updatedAt || "";
+    for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) | 0;
+  }
+  return `${s.ledger.length}:${Object.keys(s.entries).length}:${Object.keys(s.inventory).length}:${s.wallet.balance}:${h}`;
 }
 
 export const cloudAvailable = isSupabaseEnabled;

@@ -31,6 +31,8 @@ export function makeInitialState(): AppState {
     lastReminderOn: undefined,
     game: undefined,
     mantra: undefined,
+    gamesWon: 0,
+    mantrasFocused: 0,
     cloud: { autoBackup: false },
   };
 }

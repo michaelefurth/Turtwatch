@@ -18,6 +18,8 @@ export function Profile() {
   const factsRead = useStore((s) => s.factsRead);
   const achievements = useStore((s) => s.achievements);
   const shields = useStore((s) => s.shields);
+  const gamesWon = useStore((s) => s.gamesWon ?? 0);
+  const mantrasFocused = useStore((s) => s.mantrasFocused ?? 0);
 
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const total = totalTurtles(entries);
@@ -37,6 +39,8 @@ export function Profile() {
     { label: "Days repaired", value: repaired, emoji: "🩹" },
     { label: "AI rescued", value: rescued, emoji: "✨" },
     { label: "Shields used", value: shieldedUsed, emoji: "🛡️" },
+    { label: "Games won", value: gamesWon, emoji: "🎴" },
+    { label: "Mantras focused", value: mantrasFocused, emoji: "🧘" },
     { label: "Lifetime earned", value: formatNum(wallet.lifetimeEarned), emoji: "🪙" },
   ];
 

@@ -4,11 +4,12 @@ import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Mascot, type MascotMood } from "@/components/Mascot";
 import { StreakRing } from "@/components/StreakRing";
-import { Card, PillButton, TurtbuxChip } from "@/components/common";
+import { Card, PillButton, TurtbuxChip, TurtlePhoto } from "@/components/common";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
-import { equippedAccessory, equippedFrame, findMemory } from "@/store/selectors";
+import { equippedAccessory, equippedFrame, equippedSticker, findMemory } from "@/store/selectors";
+import { STICKER_EMOJI } from "@/data/shopItems";
 
 const LINES = {
   done: ["We did it again! 🎉", "Another turtle in the books! 📚", "Look at us go! 🌟", "Pond duty: complete! ✅"],
@@ -65,6 +66,7 @@ export function Home() {
   const lineSet = todayEntry ? LINES.done : streak.atRisk ? LINES.risk : lapsed ? LINES.lapsed : LINES.idle;
   const mascotSays = lineSet[hashStr(today) % lineSet.length];
   const frame = equippedFrame(inventory) ?? "";
+  const sticker = STICKER_EMOJI[equippedSticker(inventory) ?? ""];
   const memory = useMemo(() => (todayEntry ? findMemory(entries, today) : undefined), [entries, today, todayEntry]);
 
   // deterministic fact-of-the-day (hash of full date, not day-of-month)
@@ -119,7 +121,7 @@ export function Home() {
           </div>
           <div className="row mt" style={{ alignItems: "flex-start" }}>
             {todayEntry.photoUrl && (
-              <img src={todayEntry.photoUrl} alt="today's turtle" className={frame} style={{ width: 86, height: 86, borderRadius: 16, objectFit: "cover" }} />
+              <TurtlePhoto src={todayEntry.photoUrl} frameClass={frame} sticker={sticker} size={86} />
             )}
             <div className="grow">
               <b>{todayEntry.turtleName || "Today's turtle"}</b>

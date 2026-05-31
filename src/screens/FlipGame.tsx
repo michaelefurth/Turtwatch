@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useStore } from "@/store/useStore";
@@ -24,17 +24,20 @@ export function FlipGame() {
   const samples = useMemo(() => SAMPLE_TURTLES.map((t) => t.url), []);
 
   const [round, setRound] = useState(0);
+  // Rebuild the board only on a new round — never mid-game (e.g. if a photo is
+  // uploaded/deleted in another tab), which would desync the matched state.
   const { deck, ownCount } = useMemo(() => {
     const { faces, ownCount } = pickFaces(ownPhotos, samples, PAIRS);
     return { deck: makeDeck(faces), ownCount };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [round, ownPhotos.length]);
+  }, [round]);
 
   const [revealed, setRevealed] = useState<number[]>([]);
   const [matched, setMatched] = useState<Set<number>>(new Set());
   const [mismatches, setMismatches] = useState(0);
   const [lock, setLock] = useState(false);
   const [won, setWon] = useState(false);
+  const awardedRef = useRef(false); // guards reward against StrictMode double-fire
 
   // evaluate a pair when two cards are face-up
   useEffect(() => {
@@ -54,15 +57,17 @@ export function FlipGame() {
     }
   }, [revealed, deck]);
 
-  // win → award (respecting the daily cap)
+  // win → award (respecting the daily cap). awardedRef survives StrictMode's
+  // mount→unmount→remount so the reward fires exactly once per board.
   useEffect(() => {
-    if (won || matched.size !== PAIRS) return;
+    if (awardedRef.current || matched.size !== PAIRS) return;
+    awardedRef.current = true;
     setWon(true);
     const reward = award(gameReward(PAIRS, mismatches));
     celebrate(["🐢", "🪷", "✨", "💚"]);
     if (reward > 0) toast(`Lovely! +${reward} Turtbux 🪙`, mismatches === 0 ? "🌟" : "🐢");
     else toast("Daily Turtbux maxed — keep playing to relax 🌿", "🧘");
-  }, [matched, won, mismatches, award, celebrate, toast]);
+  }, [matched, mismatches, award, celebrate, toast]);
 
   const isUp = (pos: number) => revealed.includes(pos) || matched.has(deck[pos].pairId);
 
@@ -72,6 +77,7 @@ export function FlipGame() {
   };
 
   const newGame = () => {
+    awardedRef.current = false;
     setRevealed([]);
     setMatched(new Set());
     setMismatches(0);

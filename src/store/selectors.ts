@@ -15,6 +15,7 @@ function equippedInCategory(inventory: Inventory, category: string): string | un
 
 export const equippedAccessory = (inv: Inventory) => equippedInCategory(inv, "mascot_accessory");
 export const equippedFrame = (inv: Inventory) => equippedInCategory(inv, "frame");
+export const equippedSticker = (inv: Inventory) => equippedInCategory(inv, "sticker");
 
 export function availableShields(shields: ShellShield[]): number {
   return shields.filter((s) => s.status === "available").length;

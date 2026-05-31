@@ -64,7 +64,7 @@ export function Shop() {
           <div className="row">
             <span style={{ fontSize: 34 }} aria-hidden>{deal.item.emoji}</span>
             <div>
-              <span className="chip gold" style={{ fontSize: 11 }}>✨ Daily Deal · 30% off</span>
+              <span className="chip gold" style={{ fontSize: 11 }}>✨ Daily Deal · {Math.round((1 - deal.price / deal.item.price) * 100)}% off</span>
               <h3 style={{ margin: "4px 0 0" }}>{deal.item.name}</h3>
             </div>
           </div>

@@ -11,10 +11,10 @@ const TABS = [
 
 export function TabBar() {
   return (
-    <nav className="tabbar">
+    <nav className="tabbar" aria-label="Main navigation">
       {TABS.map((t) => (
         <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => (isActive ? "active" : "")}>
-          <span className="ic">{t.icon}</span>
+          <span className="ic" aria-hidden>{t.icon}</span>
           {t.label}
         </NavLink>
       ))}
