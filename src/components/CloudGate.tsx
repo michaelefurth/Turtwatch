@@ -60,6 +60,12 @@ export function CloudGate({ children }: { children: ReactNode }) {
           await migrateLocalUp(getPersistableState()); // first sign-in: push local data up (no-op if account has data)
         } catch { /* migration is best-effort */ }
         await rehydrate();
+        // surface the signed-in email in the store so Settings/Account reflect it
+        // (hydration resets cloud meta, and the login wall never set it).
+        try {
+          const u = (await sb.auth.getUser()).data.user;
+          if (u?.email) useStore.getState().setCloud({ email: u.email });
+        } catch { /* non-fatal */ }
         clearTimeout(watchdog);
         if (mounted) setPhase("ready");
       } catch (e) {

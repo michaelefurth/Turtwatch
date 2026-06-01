@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
-import { useStore, getPersistableState } from "@/store/useStore";
+import { useStore, getPersistableState, isCloudMode } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Card, PillButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
@@ -131,7 +131,29 @@ export function Account() {
           <PillButton onClick={doSignIn} disabled={busy || !email || !password}>Log in</PillButton>
           <PillButton variant="secondary" onClick={doSignUp} disabled={busy || !email || !password}>Create account</PillButton>
         </Card>
+      ) : isCloudMode() ? (
+        // server-authoritative cloud mode: everything already syncs to the
+        // account automatically — no manual snapshot backup/restore needed.
+        <>
+          <Card className="center">
+            <div style={{ fontSize: 40 }}>🐢☁️</div>
+            <h2 style={{ margin: "4px 0 2px" }}>Signed in</h2>
+            <span className="muted">{user.email}</span>
+          </Card>
+
+          <Card className="center stack">
+            <span style={{ fontSize: 32 }} aria-hidden>✨</span>
+            <b>Your pond syncs automatically</b>
+            <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+              Every turtle, your streak, Turtbux, and collection are saved to your
+              account in real time. Sign in on any device to pick up right where you left off.
+            </p>
+          </Card>
+
+          <PillButton variant="danger" onClick={doSignOut} disabled={busy}>Sign out</PillButton>
+        </>
       ) : (
+        // local-snapshot backup path (Supabase configured but not server-authoritative)
         <>
           <Card className="center">
             <div style={{ fontSize: 40 }}>🐢☁️</div>
