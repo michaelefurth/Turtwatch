@@ -28,8 +28,9 @@ body = body.replace("create table app_user", ensureReasons + "create table app_u
 // 2) tables — add IF NOT EXISTS where missing
 body = body.replace(/create table (?!if not exists)/g, "create table if not exists ");
 
-// 3) policies — drop-then-create (covers standalone + the format() loop via %1$I)
-body = body.replace(/create policy ("[^"]+") on (\S+)/g, "drop policy if exists $1 on $2;\ncreate policy $1 on $2");
+// 3) policies — drop-then-create (covers standalone + the format() loop via %1$I;
+//    \s+ handles aligned whitespace like `"facts_read"   on turtle_fact`)
+body = body.replace(/create policy ("[^"]+")\s+on\s+(\S+)/g, "drop policy if exists $1 on $2;\ncreate policy $1 on $2");
 
 // 4) triggers — drop-then-create (handles multi-line defs)
 body = body.replace(/create trigger (\w+)([\s\S]*?)\s+on\s+([\w.]+)\s+for\s+each\s+row/g,

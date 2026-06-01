@@ -431,9 +431,12 @@ end $$;
 alter table turtle_fact enable row level security;
 alter table shop_item   enable row level security;
 alter table achievement enable row level security;
-create policy "facts_read"   on turtle_fact for select using (true);
-create policy "shop_read"    on shop_item   for select using (true);
-create policy "achv_read"    on achievement for select using (true);
+drop policy if exists "facts_read" on turtle_fact;
+create policy "facts_read" on turtle_fact for select using (true);
+drop policy if exists "shop_read" on shop_item;
+create policy "shop_read" on shop_item   for select using (true);
+drop policy if exists "achv_read" on achievement;
+create policy "achv_read" on achievement for select using (true);
 
 
 -- ====================== 0002_seed_catalog.sql ======================
