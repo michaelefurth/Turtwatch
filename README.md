@@ -26,26 +26,31 @@ The full product + design package:
 12. [Edge Cases & Considerations](docs/12-edge-cases.md)
 13. [Playtest Report (6 personas)](docs/13-playtest-report.md)
 14. [Image Storage (local / Supabase / Firebase)](docs/14-image-storage.md)
+15. [Multi-user QA pass](docs/15-multiuser-qa-pass.md)
 
 ### 💻 Working prototype (`/src`)
 A **React + Vite + TypeScript PWA** implementing the full MVP UX and *all*
 business logic against a local persisted store. Every screen is live:
 
 - **Onboarding** — mascot, theme, reminder time, +50 Turtbux welcome gift
-- **Home** — streak ring, today's upload CTA / done card, **interactive blinking mascot** with rotating lines, **"On this day" memories**, fact-of-the-day
-- **Daily Upload** — photo (file or sample), name (+ 🎲 generator), mood, notes, tags, location, live Turtbux estimate
+- **Home** — streak ring, today's upload CTA / done card, **interactive blinking mascot** with rotating lines, **"On this day" memories**, fact-of-the-day, **daily login bonus**
+- **Daily Upload** — photo (file or sample), name (+ 🎲 generator), mood, notes, tags, location, live estimate + **reward-breakdown receipt** & surprise **golden-turtle** bonus
 - **Calendar** — month grid with completed / missed / repaired / AI-rescued / shielded states
 - **Diary (Feed)** — searchable, filterable timeline of every turtle (by name / mood / text)
 - **Daily Entry Detail** — view / edit (any day) / delete with streak-impact preview, framed photo
 - **Missed Day Repair** — leave blank · paid backfill · AI Turtle Rescue · Shell Shield
-- **Turtbux Shop** — shields, themes, frames, stickers, mascot accessories (buy + equip)
-- **Turtle Facts Library** — flippable collectible cards that reward Turtbux
-- **Profile** — stats, rank, achievements, balance
-- **Settings** — reminders, mascot, theme, data export, reset
+- **🗺️ Turtle Trek** — add daily goals; each one moves your turtle along a journey to 16 lore-rich places, with its own streak + bonuses
+- **🎴 Turtle Flip** — calm, no-fail memory match using your own photos; daily-capped Turtbux + lucky-flip bonus
+- **🧘 Turtle Mantras** — 200+ positive mantras with a breathing countdown; milestone celebrations + zen-moment bonus
+- **🃏 Fact Cards** — ~320 collectible cards across 4 rarities; open a **daily booster pack** (or buy extras) and complete the collection
+- **Turtbux Shop** — shields (incl. Shield Pack ×3), themes, frames, stickers, mascot accessories, daily deal (buy + equip)
+- **Profile** — stats (turtles, streaks, games, mantras, cards), rank, achievements, balance
+- **Settings & Account** — reminders, mascot, theme, **cloud sync** (Supabase), data export, reset
 
-**Polish:** Finch-inspired but lighthearted — blinking/blushing mascot you can poke,
-shell-textured streak ring, lily-pad pond with a drifting fish, page transitions,
-and a confetti burst. All motion respects `prefers-reduced-motion`.
+**Polish:** Finch-inspired but lighthearted — self-hosted Nunito, blinking/blushing
+mascot you can poke, shell-textured streak ring, lily-pad pond with a drifting fish,
+page transitions, tiered confetti, and rotating copy so it feels fresh each visit.
+All motion respects `prefers-reduced-motion`.
 
 **Image storage:** photos are local base64 by default, or **Supabase Storage** /
 **Firebase Storage** via `VITE_IMAGE_STORAGE` — see [docs/14](docs/14-image-storage.md).
