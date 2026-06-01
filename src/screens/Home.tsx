@@ -63,7 +63,9 @@ export function Home() {
   }, [autoApplyShield, claimLoginBonus, toast]);
 
   const mood: MascotMood = todayEntry
-    ? "excited"
+    ? streak.current >= 7
+      ? "proud"
+      : "excited"
     : streak.atRisk
     ? "worried"
     : lapsed

@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useId, useState } from "react";
 import type { Mascot as MascotType } from "@/types";
 
-export type MascotMood = "happy" | "excited" | "sleepy" | "worried";
+export type MascotMood = "happy" | "excited" | "sleepy" | "worried" | "proud";
 
 interface Props {
   mascot: MascotType;
@@ -36,7 +36,7 @@ export function Mascot({ mascot, mood = "happy", size = 120, accessory, wave, in
 
   const eyeClosed = mood === "sleepy" ? "M-3 0 q3 3 6 0" : mood === "worried" ? "M-3 1 q3 -3 6 0" : null;
   const mouth =
-    mood === "excited"
+    mood === "excited" || mood === "proud"
       ? "M-7 4 q7 9 14 0"
       : mood === "worried"
       ? "M-6 7 q6 -4 12 0"
@@ -48,7 +48,7 @@ export function Mascot({ mascot, mood = "happy", size = 120, accessory, wave, in
     ? {}
     : wave
     ? { rotate: [0, -4, 4, -4, 0] }
-    : mood === "excited"
+    : mood === "excited" || mood === "proud"
     ? { y: [0, -6, 0] }
     : { y: [0, -3, 0] };
 
@@ -109,6 +109,13 @@ export function Mascot({ mascot, mood = "happy", size = 120, accessory, wave, in
         )}
         {/* mouth */}
         <path d={mouth} transform="translate(60,48)" stroke="#3a4a3f" strokeWidth="2.6" fill="none" strokeLinecap="round" />
+        {/* proud sparkles */}
+        {mood === "proud" && (
+          <>
+            <path d="M40 18 L41.2 21 L44 22 L41.2 23 L40 26 L38.8 23 L36 22 L38.8 21 Z" fill="#f6c453" />
+            <path d="M82 22 L82.9 24.2 L85 25 L82.9 25.8 L82 28 L81.1 25.8 L79 25 L81.1 24.2 Z" fill="#f6c453" />
+          </>
+        )}
       </svg>
       {accessory && ACC_EMOJI[accessory] && (
         <span aria-hidden style={{ position: "absolute", left: "50%", top: ACC_EMOJI[accessory].top, transform: "translateX(-50%)", fontSize: size * 0.34 }}>
