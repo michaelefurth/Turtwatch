@@ -122,11 +122,6 @@ export function Shop() {
         {items.length === 0 && <p className="muted center">Nothing here yet — go earn some Turtbux! 🐢</p>}
       </div>
 
-      <Card className="flat center">
-        <b>✨ Premium (coming soon)</b>
-        <p className="muted" style={{ margin: "4px 0 0", fontSize: 13 }}>Extra AI rescues, exclusive themes & sticker packs, advanced stats, PDF export, and cloud backup.</p>
-      </Card>
-
       <ConfirmModal
         open={!!buying}
         emoji={buying?.item.emoji}

@@ -82,8 +82,8 @@ interface Actions {
   readFact: (factId: string) => number; // turtbux awarded (0 if already read)
   claimFactOfDay: () => number;
   claimLoginBonus: () => number; // daily login bonus (0 if already claimed today)
-  awardGameReward: (amount: number) => number; // returns Turtbux actually awarded
-  awardMantraReward: (amount: number) => number;
+  awardGameReward: (amount: number) => { total: number; lucky: number }; // total awarded + surprise-bonus portion
+  awardMantraReward: (amount: number) => { total: number; lucky: number };
   ensureQuestDaily: () => void;
   addTask: (title: string) => void;
   removeTask: (id: string) => void;
@@ -460,6 +460,7 @@ export const useStore = create<Store>((set, get) => {
       let money = award > 0 ? applyDelta(s, award, "minigame", "flipgame") : {};
       let total = award;
       let banked = earnedToday + award;
+      let luckyBonus = 0;
       // surprise lucky flip (still respects the daily cap)
       if (Math.random() < LUCKY_FLIP_PROB) {
         const lucky = remainingGameReward(banked, LUCKY_FLIP_BONUS);
@@ -467,13 +468,14 @@ export const useStore = create<Store>((set, get) => {
           money = applyDelta({ ...s, ...money }, lucky, "lucky_game", "flipgame");
           total += lucky;
           banked += lucky;
+          luckyBonus = lucky;
         }
       }
       const game = { date: today, earned: banked };
       const { achievements } = evaluate({ ...s, gamesWon, game, ...money });
       commit({ gamesWon, game, achievements, ...money });
       reconciler?.("minigame", { amount: total });
-      return total;
+      return { total, lucky: luckyBonus };
     },
 
     awardMantraReward: (amount) => {
@@ -485,19 +487,21 @@ export const useStore = create<Store>((set, get) => {
       let money = award > 0 ? applyDelta(s, award, "mantra", "mantra") : {};
       let total = award;
       let banked = earnedToday + award;
+      let luckyBonus = 0;
       if (Math.random() < ZEN_MOMENT_PROB) {
         const lucky = remainingMantraReward(banked, ZEN_MOMENT_BONUS);
         if (lucky > 0) {
           money = applyDelta({ ...s, ...money }, lucky, "lucky_mantra", "mantra");
           total += lucky;
           banked += lucky;
+          luckyBonus = lucky;
         }
       }
       const mantra = { date: today, earned: banked };
       const { achievements } = evaluate({ ...s, mantrasFocused, mantra, ...money });
       commit({ mantrasFocused, mantra, achievements, ...money });
       reconciler?.("mantra", { amount: total });
-      return total;
+      return { total, lucky: luckyBonus };
     },
 
     ensureQuestDaily: () => {

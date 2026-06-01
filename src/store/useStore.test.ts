@@ -52,7 +52,7 @@ describe("store: mini-game & mantra rewards", () => {
   it("caps daily game Turtbux but still counts the win", () => {
     // first win awards up to the cap; a huge amount is clamped
     const got = useStore.getState().awardGameReward(999);
-    expect(got).toBeLessThanOrEqual(25); // cap 20 + max lucky flip 5
+    expect(got.total).toBeLessThanOrEqual(25); // cap 20 + max lucky flip 5
     const before = useStore.getState().wallet.balance;
     useStore.getState().awardGameReward(999); // cap already hit → 0 Turtbux
     expect(useStore.getState().wallet.balance).toBe(before);

@@ -28,6 +28,7 @@ export function DailyUpload() {
   const save = useStore((s) => s.saveTodayEntry);
   const update = useStore((s) => s.updateEntry);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const today = todayKey();
   // Editing a past entry uses ?date=YYYY-MM-DD; otherwise it's today's upload.
@@ -51,13 +52,13 @@ export function DailyUpload() {
   const hasMeta = !!mood && tags.length > 0;
   const estimate = estimateUpload(streakNow, hasNotes, hasMeta);
 
-  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPickFile = (source: PhotoSource) => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     // Persist a downscaled base64 copy — blob: URLs don't survive a reload.
     const dataUrl = await fileToStorableDataUrl(file);
     setPhotoUrl(dataUrl);
-    setPhotoSource("library");
+    setPhotoSource(source);
   };
 
   const onSave = () => {
@@ -119,8 +120,10 @@ export function DailyUpload() {
             Tap to choose a photo
           </button>
         )}
-        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickFile} />
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickFile("library")} />
+        <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onPickFile("camera")} />
         <div className="row mt">
+          <PillButton variant="secondary" small onClick={() => cameraRef.current?.click()}>📷 Take photo</PillButton>
           <PillButton variant="secondary" small onClick={() => fileRef.current?.click()}>📂 Choose photo</PillButton>
         </div>
         <h3 className="mt-sm">…or pick a sample turtle</h3>

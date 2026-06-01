@@ -48,8 +48,9 @@ export function Mantras() {
     if (doneRef.current) return;
     doneRef.current = true;
     const next = focused + 1;
-    const reward = award(MANTRA_REWARD);
+    const { total: reward, lucky } = award(MANTRA_REWARD);
     toast(reward > 0 ? pick(MANTRA_DONE).replace("{n}", String(reward)) : "Daily focus reward maxed — stay a while 🌿", "🧘");
+    if (lucky > 0) setTimeout(() => toast(`🌸 Zen moment! +${lucky} bonus 🪙`, "🪷"), 450);
     if (next === 3 || next === 5 || next === 10 || next % 10 === 0) {
       celebrate(["🧘", "🌸", "🌿", "✨", "💫", "🪷"]);
       setTimeout(() => toast(`${next} breaths taken 🌸`, "🌸"), 350);

@@ -14,11 +14,8 @@ export type Mood = "happy" | "sleepy" | "derpy" | "majestic" | "shy" | "hungry";
 
 export type LedgerReason =
   | "upload"
-  | "streak_bonus"
   | "milestone"
   | "note_bonus"
-  | "meta_bonus"
-  | "challenge"
   | "fact_read"
   | "fact_of_day"
   | "repair"

@@ -69,10 +69,11 @@ export function FlipGame() {
     if (awardedRef.current || matched.size !== PAIRS) return;
     awardedRef.current = true;
     setWon(true);
-    const reward = award(gameReward(PAIRS, mismatches));
+    const { total: reward, lucky } = award(gameReward(PAIRS, mismatches));
     celebrate(mismatches === 0 ? POOLS.perfect : POOLS.game);
     if (reward > 0) toast(pick(GAME_WIN).replace("{n}", String(reward)), mismatches === 0 ? "🌟" : "🐢");
     else toast("Daily Turtbux maxed — keep playing to relax 🌿", "🧘");
+    if (lucky > 0) setTimeout(() => toast(`✨ Lucky flip! +${lucky} bonus 🪙`, "🍀"), 450);
   }, [matched, mismatches, award, celebrate, toast]);
 
   const isUp = (pos: number) => revealed.includes(pos) || matched.has(deck[pos].pairId);
