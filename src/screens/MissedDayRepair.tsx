@@ -29,8 +29,8 @@ export function MissedDayRepair() {
   const [choice, setChoice] = useState<Choice>(null);
   const [photo, setPhoto] = useState<string>(SAMPLE_TURTLES[0].url);
   const [generating, setGenerating] = useState(false);
-  const cancelledRef = useRef(false);
-  useEffect(() => () => { cancelledRef.current = true; }, []); // abort on unmount
+  const genRef = useRef(0); // token: only the latest, un-cancelled generation may charge
+  useEffect(() => () => { genRef.current++; }, []); // invalidate any in-flight gen on unmount
 
   if (entries[date]) return <Navigate to={`/day/${date}`} replace />;
   if (date === todayKey() || isFuture(date)) return <Navigate to="/calendar" replace />;
@@ -46,10 +46,11 @@ export function MissedDayRepair() {
       finish(false, "Not enough Turtbux.", "✨", "");
       return;
     }
-    cancelledRef.current = false;
+    const myGen = ++genRef.current;
     setGenerating(true);
     const { image } = await generateAiTurtleImage(date + profileName); // never throws
-    if (cancelledRef.current) return; // user aborted or navigated away — don't charge
+    // bail if this run was cancelled, superseded by a newer attempt, or unmounted
+    if (genRef.current !== myGen) return;
     setGenerating(false);
     const r = aiRescueDay(date, image);
     finish(r.ok, r.reason, "✨", "AI turtle rescued the day!");
@@ -142,8 +143,9 @@ export function MissedDayRepair() {
         confirmDisabled={generating}
         busy={generating}
         onCancel={() => {
-          // allow aborting an in-flight generation (don't trap the user)
-          if (generating) { cancelledRef.current = true; setGenerating(false); toast("Maybe next time 🐢", "🐢"); }
+          // allow aborting an in-flight generation (don't trap the user); bumping
+          // the token makes the outstanding promise bail instead of charging later
+          if (generating) { genRef.current++; setGenerating(false); toast("Maybe next time 🐢", "🐢"); }
           setChoice(null);
         }}
         onConfirm={doRescue}
