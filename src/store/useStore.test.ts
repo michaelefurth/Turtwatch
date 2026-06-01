@@ -59,6 +59,16 @@ describe("store: mini-game & mantra rewards", () => {
   });
 });
 
+describe("store: daily login bonus", () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it("pays once per day", () => {
+    const first = useStore.getState().claimLoginBonus();
+    expect(first).toBeGreaterThanOrEqual(5);
+    expect(useStore.getState().claimLoginBonus()).toBe(0);
+  });
+});
+
 describe("store: saveTodayEntry never overwrites", () => {
   beforeEach(() => useStore.getState().reset());
 

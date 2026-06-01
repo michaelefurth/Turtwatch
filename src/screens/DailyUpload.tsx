@@ -12,7 +12,13 @@ import { estimateUpload } from "@/logic/turtbux";
 import { todayKey, prettyDate, isFuture } from "@/logic/dates";
 import { fileToStorableDataUrl } from "@/lib/image";
 import { generateTurtleName } from "@/data/turtleNames";
+import { POOLS } from "@/lib/variety";
 import type { Mood, PhotoSource } from "@/types";
+
+interface Receipt {
+  total: number;
+  parts: { label: string; amount: number }[];
+}
 
 export function DailyUpload() {
   const nav = useNavigate();
@@ -37,6 +43,7 @@ export function DailyUpload() {
   const [tags, setTags] = useState<string[]>(existing?.tags ?? []);
   const [useLocation, setUseLocation] = useState(!!existing?.location);
   const [locationLabel, setLocationLabel] = useState(existing?.location?.label ?? "");
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   const streakNow = useMemo(() => computeStreak(entries).current, [entries]);
   const hasNotes = notes.trim().length >= 10;
@@ -70,17 +77,21 @@ export function DailyUpload() {
     // routes through updateEntry so the base upload reward can't be re-farmed.
     const startedBroken = !isEditing && streakNow === 0;
     const reward = isEditing ? update(date, draft) : save(draft);
-    celebrate();
-    const CHEERS = ["Shell yeah! 🐢", "Turtle-y awesome! 🎉", "Pond-tastic! 🌿", "Snap-tacular! 📸"];
-    if (reward.total > 0 && !isEditing) toast(`${CHEERS[Math.floor(Math.random() * CHEERS.length)]} +${reward.total} 🪙`, "🎉");
-    else if (reward.total > 0) toast(`+${reward.total} Turtbux! 🪙`, "🎉");
-    else toast("Saved! 💾", "🐢");
-    if (startedBroken) setTimeout(() => toast("New streak started! 🌱", "🐢"), 300);
-    reward.newAchievements.forEach((id) => {
+    const jackpot = reward.parts.some((p) => p.label.includes("milestone") || p.label.includes("Golden")) || reward.total >= 45;
+    celebrate(jackpot ? POOLS.perfect : POOLS.upload);
+    reward.newAchievements.forEach((id, i) => {
       const a = ACHIEVEMENTS.find((x) => x.id === id);
-      if (a) setTimeout(() => toast(`Achievement: ${a.title}`, a.emoji), 500);
+      if (a) setTimeout(() => toast(`Achievement: ${a.title}`, a.emoji), 700 + i * 250);
     });
-    nav(isEditing && date !== today ? `/day/${date}` : "/");
+
+    if (isEditing) {
+      toast(reward.total > 0 ? `+${reward.total} Turtbux! 🪙` : "Saved! 💾", "🐢");
+      nav(date !== today ? `/day/${date}` : "/");
+      return;
+    }
+    // new upload → show a reward "receipt" moment, then home
+    if (startedBroken) setTimeout(() => toast("New streak started! 🌱", "🐢"), 300);
+    setReceipt(reward);
   };
 
   // Creating is only valid for today. A past date with no entry → repair flow.
@@ -162,6 +173,28 @@ export function DailyUpload() {
 
       <PillButton onClick={onSave}>{isEditing ? "Save changes 💾" : "Save turtle 🐢✨"}</PillButton>
       <PillButton variant="ghost" onClick={() => nav(-1)}>Cancel</PillButton>
+
+      {receipt && (
+        <div className="scrim" onClick={() => nav("/")}>
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="Reward summary" onClick={(e) => e.stopPropagation()}>
+            <div className="center" style={{ fontSize: 40 }}>🐢✨</div>
+            <h2 className="center" style={{ margin: "4px 0 10px" }}>Turtle saved!</h2>
+            <div className="stack" style={{ gap: 6 }}>
+              {receipt.parts.map((p, i) => (
+                <div key={i} className="between">
+                  <span className={p.label.includes("Golden") || p.label.includes("milestone") ? "" : "muted"} style={{ fontWeight: 700 }}>{p.label}</span>
+                  <b>+{p.amount} 🪙</b>
+                </div>
+              ))}
+              <div className="between" style={{ borderTop: "2px solid var(--line)", paddingTop: 8, marginTop: 2 }}>
+                <b>Total</b>
+                <b className="chip gold">+{receipt.total} 🪙</b>
+              </div>
+            </div>
+            <div className="mt"><PillButton onClick={() => nav("/")}>Sweet! 🐢</PillButton></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

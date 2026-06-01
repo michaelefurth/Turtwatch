@@ -11,7 +11,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "facts_5", title: "Curious Turtle", description: "Read 5 turtle facts.", emoji: "📖" },
   { id: "facts_all", title: "Turtle Scholar", description: "Read every turtle fact.", emoji: "🎓" },
   { id: "shopper", title: "Pond Shopper", description: "Buy your first shop item.", emoji: "🛍️" },
-  { id: "rich", title: "Turtbux Tycoon", description: "Earn 500 Turtbux in total.", emoji: "🪙" },
+  { id: "rich", title: "Turtbux Tycoon", description: "Earn 1,500 Turtbux in total.", emoji: "🪙" },
   { id: "decorator", title: "Cozy Decorator", description: "Equip a theme, frame, and accessory.", emoji: "🎨" },
   { id: "first_flip", title: "Flip Friend", description: "Win your first Turtle Flip game.", emoji: "🎴" },
   { id: "flip_master", title: "Flip Master", description: "Win 10 Turtle Flip games.", emoji: "🃏" },

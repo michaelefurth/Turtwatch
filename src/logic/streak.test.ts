@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeStreak, mostRecentMissedDay } from "./streak";
-import { uploadReward, estimateUpload } from "./turtbux";
+import { uploadReward, estimateUpload, loginBonus, LOGIN_BONUS_BASE } from "./turtbux";
 import { rankFor } from "./ranks";
 import { addDays, todayKey } from "./dates";
 import type { TurtleEntry } from "@/types";
@@ -80,6 +80,18 @@ describe("uploadReward", () => {
 
   it("estimate uses streak+1", () => {
     expect(estimateUpload(0, false, false)).toBe(11); // streakAfter=1 -> 10+1
+  });
+});
+
+describe("loginBonus", () => {
+  it("is just the base with no streak", () => {
+    expect(loginBonus(0)).toBe(LOGIN_BONUS_BASE);
+    expect(loginBonus(3)).toBe(LOGIN_BONUS_BASE);
+  });
+  it("adds the highest qualifying streak tier", () => {
+    expect(loginBonus(7)).toBe(LOGIN_BONUS_BASE + 10);
+    expect(loginBonus(30)).toBe(LOGIN_BONUS_BASE + 25);
+    expect(loginBonus(365)).toBe(LOGIN_BONUS_BASE + 100);
   });
 });
 

@@ -43,9 +43,11 @@ export function pickFaces(
   return { faces, ownCount: own.length };
 }
 
-export const DAILY_GAME_CAP = 30;
+export const DAILY_GAME_CAP = 20;
 export const PERFECT_BONUS = 6;
 export const BASE_WIN = 6;
+export const LUCKY_FLIP_PROB = 0.12; // surprise bonus on a finished board
+export const LUCKY_FLIP_BONUS = 5;
 
 /** Reward for finishing a board; a flawless run (no wasted flips) earns a bonus. */
 export function gameReward(pairs: number, mismatches: number): number {

@@ -26,6 +26,7 @@ on conflict (id) do update set
 -- ---------------- shop items ----------------
 insert into shop_item (id, category, name, description, price, emoji, consumable, theme) values
   ('buy_shield','shield','Shell Shield','Protects one missed day so your streak survives. Stock up!',80,'🛡️',true,null),
+  ('shield_pack_3','shield','Shield Pack ×3','Three Shell Shields at once — stock up for a long trip.',210,'🛡️',true,null),
   ('frame_lilypad','frame','Lily Pad Frame','Frame your daily turtle on a floating lily pad.',120,'🪷',false,null),
   ('frame_bubbles','frame','Bubble Frame','Surround your turtle with happy little bubbles.',120,'🫧',false,null),
   ('frame_gold','frame','Golden Shell Frame','For your most majestic turtles only.',220,'🥇',false,null),

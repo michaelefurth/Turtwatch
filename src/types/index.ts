@@ -29,6 +29,10 @@ export type LedgerReason =
   | "minigame"
   | "mantra"
   | "task"
+  | "daily_login"
+  | "lucky_upload"
+  | "lucky_game"
+  | "lucky_mantra"
   | "refund"
   | "admin";
 
@@ -175,6 +179,7 @@ export interface AppState {
   factOfDayClaimedOn?: string; // date key
   autoShieldCheckedOn?: string; // date key — auto-shield runs at most once/day
   lastReminderOn?: string; // date key — local reminder fired at most once/day
+  loginBonusClaimedOn?: string; // date key — daily login bonus claimed once/day
   /** daily Turtbux earned from the mini-game (capped per day) */
   game?: { date: string; earned: number };
   /** daily Turtbux earned from mantra focus sessions (capped per day) */

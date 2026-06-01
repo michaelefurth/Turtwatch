@@ -29,6 +29,7 @@ export function makeInitialState(): AppState {
     factOfDayClaimedOn: undefined,
     autoShieldCheckedOn: undefined,
     lastReminderOn: undefined,
+    loginBonusClaimedOn: undefined,
     game: undefined,
     mantra: undefined,
     gamesWon: 0,

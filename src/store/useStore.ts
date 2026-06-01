@@ -12,9 +12,12 @@ import type {
 import { makeInitialState } from "./initialState";
 import { loadState, saveState, clearState } from "./persistence";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
-import { uploadReward, ONBOARDING_GIFT, FACT_OF_DAY } from "@/logic/turtbux";
-import { remainingGameReward } from "@/logic/flipgame";
-import { remainingMantraReward } from "@/logic/mantras";
+import {
+  uploadReward, ONBOARDING_GIFT, FACT_OF_DAY,
+  loginBonus, GOLDEN_TURTLE_PROB, GOLDEN_TURTLE_BONUS,
+} from "@/logic/turtbux";
+import { remainingGameReward, LUCKY_FLIP_PROB, LUCKY_FLIP_BONUS } from "@/logic/flipgame";
+import { remainingMantraReward, ZEN_MOMENT_PROB, ZEN_MOMENT_BONUS } from "@/logic/mantras";
 import {
   makeQuest, withDailyReset, remainingTaskReward, nextStreak, arrivalLandmark,
   reachedCount, TASK_REWARD, LEG_BONUS, type Landmark,
@@ -59,6 +62,7 @@ interface Actions {
   equipItem: (itemId: string) => void;
   readFact: (factId: string) => number; // turtbux awarded (0 if already read)
   claimFactOfDay: () => number;
+  claimLoginBonus: () => number; // daily login bonus (0 if already claimed today)
   awardGameReward: (amount: number) => number; // returns Turtbux actually awarded
   awardMantraReward: (amount: number) => number;
   ensureQuestDaily: () => void;
@@ -162,7 +166,14 @@ export const useStore = create<Store>((set, get) => {
       entry.earnedTurtbux = reward.total;
       entry.bonuses = { note: hasNotes, meta: hasMeta };
 
-      const money = applyDelta(s, reward.total, "upload", "entry", date);
+      let money = applyDelta(s, reward.total, "upload", "entry", date);
+      // surprise "golden turtle" — a rare extra bonus on an on-time upload
+      if (Math.random() < GOLDEN_TURTLE_PROB) {
+        money = applyDelta({ ...s, ...money }, GOLDEN_TURTLE_BONUS, "lucky_upload", "entry", date);
+        entry.earnedTurtbux += GOLDEN_TURTLE_BONUS; // so delete fully reverses it
+        reward.parts.push({ label: "✨ Golden turtle!", amount: GOLDEN_TURTLE_BONUS });
+        reward.total += GOLDEN_TURTLE_BONUS;
+      }
       const next: AppState = { ...s, entries, ...money };
       const { achievements, newAchievements } = evaluate(next);
       commit({ entries, ...money, achievements });
@@ -325,9 +336,11 @@ export const useStore = create<Store>((set, get) => {
       // a daily-deal price override can only lower the price (never raise it, and
       // never below 1 — prevents free/negative purchases from any caller)
       const price = priceOverride != null ? Math.max(1, Math.min(priceOverride, item.price)) : item.price;
-      if (item.id === "buy_shield") {
+      if (item.id === "buy_shield" || item.id === "shield_pack_3") {
         if (s.wallet.balance < price) return { ok: false, reason: "Not enough Turtbux." };
-        const shields = [...s.shields, { id: uid(), status: "available" as const, acquiredAt: nowIso() }];
+        const count = item.id === "shield_pack_3" ? 3 : 1;
+        const newShields = Array.from({ length: count }, () => ({ id: uid(), status: "available" as const, acquiredAt: nowIso() }));
+        const shields = [...s.shields, ...newShields];
         const money = applyDelta(s, -price, "shield_buy", "shield");
         commit({ shields, ...money });
         return { ok: true };
@@ -383,17 +396,38 @@ export const useStore = create<Store>((set, get) => {
       return FACT_OF_DAY;
     },
 
+    claimLoginBonus: () => {
+      const s = get();
+      const today = todayKey();
+      if (s.loginBonusClaimedOn === today) return 0;
+      const total = loginBonus(computeStreak(s.entries).current);
+      const money = applyDelta(s, total, "daily_login");
+      commit({ loginBonusClaimedOn: today, ...money });
+      return total;
+    },
+
     awardGameReward: (amount) => {
       const s = get();
       const today = todayKey();
       const gamesWon = (s.gamesWon ?? 0) + 1;
       const earnedToday = s.game?.date === today ? s.game.earned : 0;
       const award = remainingGameReward(earnedToday, amount);
-      const money = award > 0 ? applyDelta(s, award, "minigame", "flipgame") : {};
-      const game = { date: today, earned: earnedToday + award };
+      let money = award > 0 ? applyDelta(s, award, "minigame", "flipgame") : {};
+      let total = award;
+      let banked = earnedToday + award;
+      // surprise lucky flip (still respects the daily cap)
+      if (Math.random() < LUCKY_FLIP_PROB) {
+        const lucky = remainingGameReward(banked, LUCKY_FLIP_BONUS);
+        if (lucky > 0) {
+          money = applyDelta({ ...s, ...money }, lucky, "lucky_game", "flipgame");
+          total += lucky;
+          banked += lucky;
+        }
+      }
+      const game = { date: today, earned: banked };
       const { achievements } = evaluate({ ...s, gamesWon, game, ...money });
       commit({ gamesWon, game, achievements, ...money });
-      return award;
+      return total;
     },
 
     awardMantraReward: (amount) => {
@@ -402,11 +436,21 @@ export const useStore = create<Store>((set, get) => {
       const mantrasFocused = (s.mantrasFocused ?? 0) + 1;
       const earnedToday = s.mantra?.date === today ? s.mantra.earned : 0;
       const award = remainingMantraReward(earnedToday, amount);
-      const money = award > 0 ? applyDelta(s, award, "mantra", "mantra") : {};
-      const mantra = { date: today, earned: earnedToday + award };
+      let money = award > 0 ? applyDelta(s, award, "mantra", "mantra") : {};
+      let total = award;
+      let banked = earnedToday + award;
+      if (Math.random() < ZEN_MOMENT_PROB) {
+        const lucky = remainingMantraReward(banked, ZEN_MOMENT_BONUS);
+        if (lucky > 0) {
+          money = applyDelta({ ...s, ...money }, lucky, "lucky_mantra", "mantra");
+          total += lucky;
+          banked += lucky;
+        }
+      }
+      const mantra = { date: today, earned: banked };
       const { achievements } = evaluate({ ...s, mantrasFocused, mantra, ...money });
       commit({ mantrasFocused, mantra, achievements, ...money });
-      return award;
+      return total;
     },
 
     ensureQuestDaily: () => {
@@ -559,7 +603,7 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
   if (factsRead >= 5) earn("facts_5");
   if (factsRead >= FACTS.length) earn("facts_all");
   if (owned >= 1) earn("shopper");
-  if (s.wallet.lifetimeEarned >= 500) earn("rich");
+  if (s.wallet.lifetimeEarned >= 1500) earn("rich");
   if (equippedCats.has("theme") && equippedCats.has("frame") && equippedCats.has("mascot_accessory"))
     earn("decorator");
   if ((s.gamesWon ?? 0) >= 1) earn("first_flip");
@@ -579,11 +623,13 @@ function stripState(s: Store): AppState {
   const {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, quest, cloud,
+    autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
+    gamesWon, mantrasFocused, quest, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, quest, cloud,
+    autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
+    gamesWon, mantrasFocused, quest, cloud,
   };
 }

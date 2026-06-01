@@ -33,6 +33,7 @@ export function Home() {
   const inventory = useStore((s) => s.inventory);
   const autoApplyShield = useStore((s) => s.autoApplyShield);
   const claimFactOfDay = useStore((s) => s.claimFactOfDay);
+  const claimLoginBonus = useStore((s) => s.claimLoginBonus);
   const factClaimedOn = useStore((s) => s.factOfDayClaimedOn);
 
   const streak = useMemo(() => computeStreak(entries), [entries]);
@@ -51,9 +52,11 @@ export function Home() {
   useEffect(() => {
     if (ranAuto.current) return;
     ranAuto.current = true;
+    const bonus = claimLoginBonus();
+    if (bonus > 0) toast(`Welcome back! Daily bonus +${bonus} 🪙`, "🎁");
     const protectedDay = autoApplyShield();
-    if (protectedDay) toast("Shell Shield saved your streak! 🛡️", "🛡️");
-  }, [autoApplyShield, toast]);
+    if (protectedDay) setTimeout(() => toast("Shell Shield saved your streak! 🛡️", "🛡️"), bonus > 0 ? 350 : 0);
+  }, [autoApplyShield, claimLoginBonus, toast]);
 
   const mood: MascotMood = todayEntry
     ? "excited"

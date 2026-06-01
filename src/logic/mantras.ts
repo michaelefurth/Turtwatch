@@ -100,6 +100,8 @@ export function shuffledMantras(rng: () => number = Math.random): string[] {
 export const FOCUS_OPTIONS = [15, 30, 60]; // seconds
 export const MANTRA_REWARD = 2; // Turtbux per completed focus
 export const MANTRA_DAILY_CAP = 20;
+export const ZEN_MOMENT_PROB = 0.1; // surprise bonus on a completed focus
+export const ZEN_MOMENT_BONUS = 3;
 
 export function remainingMantraReward(earnedToday: number, amount: number): number {
   return Math.max(0, Math.min(amount, MANTRA_DAILY_CAP - earnedToday));

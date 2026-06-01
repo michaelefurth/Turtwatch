@@ -23,6 +23,7 @@ const themeItems: ShopItem[] = THEMES.filter((t) => t.id !== "pond_mint").map((t
 export const SHOP_ITEMS: ShopItem[] = [
   // recovery & shields (consumable)
   { id: "buy_shield", category: "shield", name: "Shell Shield", description: "Protects one missed day so your streak survives. Stock up!", price: 80, emoji: "🛡️", consumable: true },
+  { id: "shield_pack_3", category: "shield", name: "Shield Pack ×3", description: "Three Shell Shields at once — stock up for a long trip.", price: 210, emoji: "🛡️", consumable: true },
   // frames
   { id: "frame_lilypad", category: "frame", name: "Lily Pad Frame", description: "Frame your daily turtle on a floating lily pad.", price: 120, emoji: "🪷", consumable: false },
   { id: "frame_bubbles", category: "frame", name: "Bubble Frame", description: "Surround your turtle with happy little bubbles.", price: 120, emoji: "🫧", consumable: false },
