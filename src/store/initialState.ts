@@ -24,6 +24,9 @@ export function makeInitialState(): AppState {
       reminderTime: "19:00",
       streakRiskEnabled: true,
       factOfDayEnabled: false,
+      soundEnabled: false,
+      hapticsEnabled: true,
+      pushEnabled: false,
     },
     // explicit so reset() (a shallow merge) clears any prior values
     factOfDayClaimedOn: undefined,

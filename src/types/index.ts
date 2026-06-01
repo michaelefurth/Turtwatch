@@ -150,6 +150,9 @@ export interface NotificationSettings {
   reminderTime: string; // "HH:mm"
   streakRiskEnabled: boolean;
   factOfDayEnabled: boolean;
+  soundEnabled?: boolean; // celebration chime (default off)
+  hapticsEnabled?: boolean; // vibration on celebrations (default on)
+  pushEnabled?: boolean; // browser push for reminders / good mornings
 }
 
 export interface UserProfile {

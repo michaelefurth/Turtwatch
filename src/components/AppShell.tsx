@@ -6,6 +6,8 @@ import { useFeedback } from "./feedback";
 import { useStore } from "@/store/useStore";
 import { themeById } from "@/data/shopItems";
 import { ACHIEVEMENTS } from "@/data/achievements";
+import { RANKS, rankFor } from "@/logic/ranks";
+import { totalTurtles } from "@/store/selectors";
 import { useReminders } from "@/hooks/useReminders";
 import { useCloudAutoBackup } from "@/hooks/useCloudAutoBackup";
 
@@ -63,7 +65,7 @@ function LilyPad({ style, flower }: { style: React.CSSProperties; flower?: boole
 export function AppShell() {
   const themeId = useStore((s) => s.profile.themeId);
   const loc = useLocation();
-  const { toast } = useFeedback();
+  const { toast, celebrate } = useFeedback();
   useReminders();
   useCloudAutoBackup();
 
@@ -77,6 +79,7 @@ export function AppShell() {
   // surface newly-earned achievements from ANY source (upload, game, mantra,
   // trek, booster, login…) — actions write to `achievements`; we toast the diff
   const seenAch = useRef(new Set(Object.keys(useStore.getState().achievements)));
+  const lastRankIdx = useRef(RANKS.indexOf(rankFor(totalTurtles(useStore.getState().entries)).rank));
   useEffect(() => {
     return useStore.subscribe((s) => {
       for (const id of Object.keys(s.achievements)) {
@@ -86,8 +89,18 @@ export function AppShell() {
           if (a) toast(`Achievement: ${a.title}`, a.emoji);
         }
       }
+      // rank-up celebration (only on promotion)
+      const rank = rankFor(totalTurtles(s.entries)).rank;
+      const idx = RANKS.indexOf(rank);
+      if (idx > lastRankIdx.current) {
+        lastRankIdx.current = idx;
+        celebrate(["🏅", "🐢", "✨", "🎉", "👑", "🌟"]);
+        setTimeout(() => toast(`Ranked up to ${rank.emoji} ${rank.name}!`, rank.emoji), 250);
+      } else if (idx < lastRankIdx.current) {
+        lastRankIdx.current = idx; // keep in sync on downgrade, no celebration
+      }
     });
-  }, [toast]);
+  }, [toast, celebrate]);
 
   // apply theme palette as CSS custom properties
   useEffect(() => {

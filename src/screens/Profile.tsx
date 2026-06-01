@@ -7,7 +7,16 @@ import { computeStreak } from "@/logic/streak";
 import { rankFor } from "@/logic/ranks";
 import { ACHIEVEMENTS } from "@/data/achievements";
 import { TOTAL_CARDS } from "@/logic/booster";
+import { ALL_FACT_CARDS, RARITY, type CardRarity } from "@/data/factCards";
+import { destinationFor, reachedCount, questStreakDisplay } from "@/logic/quest";
+import { todayKey, yesterdayKey } from "@/logic/dates";
 import { equippedAccessory, totalTurtles } from "@/store/selectors";
+
+const RARITY_TOTALS: Record<CardRarity, number> = ALL_FACT_CARDS.reduce((m, c) => {
+  m[c.rarity] = (m[c.rarity] ?? 0) + 1;
+  return m;
+}, {} as Record<CardRarity, number>);
+const RARITY_ORDER: CardRarity[] = ["common", "rare", "epic", "legendary"];
 
 export function Profile() {
   const nav = useNavigate();
@@ -19,7 +28,18 @@ export function Profile() {
   const shields = useStore((s) => s.shields);
   const gamesWon = useStore((s) => s.gamesWon ?? 0);
   const mantrasFocused = useStore((s) => s.mantrasFocused ?? 0);
-  const collected = useStore((s) => Object.keys(s.collection ?? {}).length);
+  const collection = useStore((s) => s.collection ?? {});
+  const quest = useStore((s) => s.quest);
+  const collected = Object.keys(collection).length;
+
+  const ownedByRarity = RARITY_ORDER.map((r) => ({
+    rarity: r,
+    owned: Object.keys(collection).filter((id) => ALL_FACT_CARDS.find((c) => c.id === id)?.rarity === r).length,
+    total: RARITY_TOTALS[r] ?? 0,
+  }));
+  const questSteps = quest?.steps ?? 0;
+  const dest = destinationFor(questSteps);
+  const goalStreak = questStreakDisplay(quest, todayKey(), yesterdayKey());
 
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const total = totalTurtles(entries);
@@ -77,6 +97,36 @@ export function Profile() {
           </div>
         ))}
       </div>
+
+      <h2 style={{ marginBottom: 0 }}>Journey 🗺️</h2>
+      <Card className="flat" onClick={() => nav("/quest")}>
+        <div className="between">
+          <div>
+            <b>{reachedCount(questSteps)} place{reachedCount(questSteps) === 1 ? "" : "s"} explored</b>
+            <div className="muted" style={{ fontSize: 13 }}>Heading to {dest.emoji} {dest.name}</div>
+          </div>
+          <span className="chip">🔥 {goalStreak}</span>
+        </div>
+      </Card>
+
+      <h2 style={{ marginBottom: 0 }}>Collection 🃏</h2>
+      <Card className="flat stack" onClick={() => nav("/facts")}>
+        <div className="between">
+          <b>{collected}/{TOTAL_CARDS} cards</b>
+          <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>tap to open packs →</span>
+        </div>
+        {ownedByRarity.map((r) => (
+          <div key={r.rarity}>
+            <div className="between" style={{ fontSize: 12, fontWeight: 800 }}>
+              <span style={{ color: RARITY[r.rarity].color === "#f6c453" ? "#8a5d00" : "var(--text)" }}>{RARITY[r.rarity].label}</span>
+              <span className="muted">{r.owned}/{r.total}</span>
+            </div>
+            <div className="progress" style={{ height: 8, marginTop: 3 }}>
+              <div style={{ width: `${r.total ? (r.owned / r.total) * 100 : 0}%`, background: RARITY[r.rarity].color }} />
+            </div>
+          </div>
+        ))}
+      </Card>
 
       <h2 style={{ marginBottom: 0 }}>Achievements</h2>
       <div className="grid2">

@@ -8,6 +8,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { THEMES } from "@/data/shopItems";
 import { exportState } from "@/store/persistence";
 import { requestNotificationPermission, notificationPermission, notificationsSupported } from "@/lib/notifications";
+import { pushSupported, enablePush, disablePush } from "@/lib/push";
 import type { Mascot as MascotType } from "@/types";
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
@@ -131,6 +132,34 @@ export function Settings() {
         )}
         <div className="between"><span>Streak-at-risk alerts</span><Toggle on={notifications.streakRiskEnabled} onClick={() => updateNotifications({ streakRiskEnabled: !notifications.streakRiskEnabled })} /></div>
         <div className="between"><span>Fact of the day</span><Toggle on={notifications.factOfDayEnabled} onClick={() => updateNotifications({ factOfDayEnabled: !notifications.factOfDayEnabled })} /></div>
+        {pushSupported() && (
+          <>
+            <div className="between">
+              <div><span>Browser push</span><div className="muted" style={{ fontSize: 12 }}>Reminders & good mornings, even when closed</div></div>
+              <Toggle
+                on={!!notifications.pushEnabled}
+                onClick={async () => {
+                  if (notifications.pushEnabled) {
+                    await disablePush();
+                    updateNotifications({ pushEnabled: false });
+                    toast("Push turned off", "🔕");
+                    return;
+                  }
+                  const res = await enablePush();
+                  if (res.ok) {
+                    updateNotifications({ pushEnabled: true });
+                    toast(res.mode === "push" ? "Push on — see you each morning! 🌅" : "Notifications allowed 🔔", "🐢");
+                  } else {
+                    toast(res.mode === "denied" ? "Allow notifications in your browser first" : "Push isn't available here", "🔔");
+                  }
+                }}
+              />
+            </div>
+            {notifications.pushEnabled && !import.meta.env.VITE_VAPID_PUBLIC_KEY && (
+              <span className="muted" style={{ fontSize: 12 }}>Closed-app push needs server setup (see docs/17); in-app reminders work now.</span>
+            )}
+          </>
+        )}
       </Card>
 
       <Card className="stack">
