@@ -34,6 +34,8 @@ export type LedgerReason =
   | "lucky_game"
   | "lucky_mantra"
   | "booster"
+  | "booster_open"
+  | "booster_reward"
   | "refund"
   | "admin";
 
@@ -140,6 +142,7 @@ export interface QuestState {
   streakLongest: number;
   lastCompletedDate?: string; // last day ≥1 task was completed
   reward?: { date: string; earned: number }; // daily Turtbux cap tracker
+  stepsToday?: { date: string; count: number }; // daily step cap (anti-farm)
 }
 
 export interface NotificationSettings {

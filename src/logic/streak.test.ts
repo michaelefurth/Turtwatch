@@ -91,7 +91,7 @@ describe("loginBonus", () => {
   it("adds the highest qualifying streak tier", () => {
     expect(loginBonus(7)).toBe(LOGIN_BONUS_BASE + 10);
     expect(loginBonus(30)).toBe(LOGIN_BONUS_BASE + 25);
-    expect(loginBonus(365)).toBe(LOGIN_BONUS_BASE + 100);
+    expect(loginBonus(365)).toBe(LOGIN_BONUS_BASE + 75);
   });
 });
 

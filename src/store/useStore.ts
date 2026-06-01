@@ -20,9 +20,9 @@ import { remainingGameReward, LUCKY_FLIP_PROB, LUCKY_FLIP_BONUS } from "@/logic/
 import { remainingMantraReward, ZEN_MOMENT_PROB, ZEN_MOMENT_BONUS } from "@/logic/mantras";
 import {
   makeQuest, withDailyReset, remainingTaskReward, nextStreak, arrivalLandmark,
-  reachedCount, TASK_REWARD, LEG_BONUS, type Landmark,
+  reachedCount, TASK_REWARD, LEG_BONUS, STEP_DAILY_CAP, type Landmark,
 } from "@/logic/quest";
-import { pullBooster, cardReward, BOOSTER_COST } from "@/logic/booster";
+import { pullBooster, cardReward, BOOSTER_COST, TOTAL_CARDS } from "@/logic/booster";
 import type { FactCardDef } from "@/data/factCards";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
@@ -70,7 +70,7 @@ interface Actions {
   ensureQuestDaily: () => void;
   addTask: (title: string) => void;
   removeTask: (id: string) => void;
-  toggleTask: (id: string) => { rewarded: number; arrived: Landmark | null };
+  toggleTask: (id: string) => { rewarded: number; arrived: Landmark | null; stepped: boolean };
   openBooster: (paid: boolean) => { ok: boolean; reason?: string; cards?: { card: FactCardDef; isNew: boolean }[]; rewarded?: number };
   updateNotifications: (n: Partial<NotificationSettings>) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
@@ -165,13 +165,18 @@ export const useStore = create<Store>((set, get) => {
       const streakAfter = computeStreak(entries).current;
       const hasNotes = !!(draft.notes && draft.notes.trim().length >= 10);
       const hasMeta = !!(draft.mood && (draft.tags?.length ?? 0) > 0);
-      const reward = uploadReward({ streakAfterUpload: streakAfter, hasNotes, hasMeta });
+      // Pay an upload's base reward at most once per calendar date, ever — closes
+      // the delete-(partial refund clamp)-then-re-upload arbitrage.
+      const basePaid = s.ledger.some((l) => l.reason === "upload" && l.refId === date);
+      const reward = basePaid
+        ? { total: 0, parts: [] as { label: string; amount: number }[] }
+        : uploadReward({ streakAfterUpload: streakAfter, hasNotes, hasMeta });
       entry.earnedTurtbux = reward.total;
-      entry.bonuses = { note: hasNotes, meta: hasMeta };
+      entry.bonuses = { note: hasNotes && !basePaid, meta: hasMeta && !basePaid };
 
-      let money = applyDelta(s, reward.total, "upload", "entry", date);
-      // surprise "golden turtle" — a rare extra bonus on an on-time upload
-      if (Math.random() < GOLDEN_TURTLE_PROB) {
+      let money = reward.total > 0 ? applyDelta(s, reward.total, "upload", "entry", date) : {};
+      // surprise "golden turtle" — a rare extra bonus on a first on-time upload
+      if (!basePaid && Math.random() < GOLDEN_TURTLE_PROB) {
         money = applyDelta({ ...s, ...money }, GOLDEN_TURTLE_BONUS, "lucky_upload", "entry", date);
         entry.earnedTurtbux += GOLDEN_TURTLE_BONUS; // so delete fully reverses it
         reward.parts.push({ label: "✨ Golden turtle!", amount: GOLDEN_TURTLE_BONUS });
@@ -476,7 +481,8 @@ export const useStore = create<Store>((set, get) => {
     removeTask: (id) => {
       const s = get();
       if (!s.quest) return;
-      commit({ quest: { ...s.quest, tasks: s.quest.tasks.filter((t) => t.id !== id) } });
+      const base = withDailyReset(s.quest, todayKey());
+      commit({ quest: { ...base, tasks: base.tasks.filter((t) => t.id !== id) } });
     },
 
     toggleTask: (id) => {
@@ -485,23 +491,26 @@ export const useStore = create<Store>((set, get) => {
       const yesterday = addDays(today, -1);
       const base = withDailyReset(s.quest ?? makeQuest(today), today);
       const task = base.tasks.find((t) => t.id === id);
-      if (!task) return { rewarded: 0, arrived: null };
+      if (!task) return { rewarded: 0, arrived: null, stepped: false };
 
       if (task.done) {
         // un-tick: keep journey progress & rewards, just clear the checkbox
         const tasks = base.tasks.map((t) => (t.id === id ? { ...t, done: false } : t));
         commit({ quest: { ...base, tasks } });
-        return { rewarded: 0, arrived: null };
+        return { rewarded: 0, arrived: null, stepped: false };
       }
 
-      const firstPayoutToday = task.lastDoneDate !== today; // anti-farm: pay once/day/task
+      const firstPayoutToday = task.lastDoneDate !== today; // pay once/day/task
       const tasks = base.tasks.map((t) =>
         t.id === id ? { ...t, done: true, lastDoneDate: firstPayoutToday ? today : t.lastDoneDate } : t,
       );
 
-      if (!firstPayoutToday) {
+      // daily step cap: stops remove-and-re-add (fresh ids) from farming
+      // unlimited steps / leg bonuses. Past the cap, ticking just checks the box.
+      const stepsToday = base.stepsToday?.date === today ? base.stepsToday.count : 0;
+      if (!firstPayoutToday || stepsToday >= STEP_DAILY_CAP) {
         commit({ quest: { ...base, tasks } });
-        return { rewarded: 0, arrived: null };
+        return { rewarded: 0, arrived: null, stepped: false };
       }
 
       const oldSteps = base.steps;
@@ -509,7 +518,7 @@ export const useStore = create<Store>((set, get) => {
       const arrived = arrivalLandmark(oldSteps, steps);
       const earnedToday = base.reward?.date === today ? base.reward.earned : 0;
       const taskPay = remainingTaskReward(earnedToday, TASK_REWARD);
-      const legPay = arrived ? LEG_BONUS : 0; // milestone bonus is exempt from the daily cap
+      const legPay = arrived ? LEG_BONUS : 0; // milestone bonus is exempt from the Turtbux cap
       const rewarded = taskPay + legPay;
       const streakCurrent = nextStreak(base.lastCompletedDate, today, yesterday, base.streakCurrent);
       const quest = {
@@ -517,6 +526,7 @@ export const useStore = create<Store>((set, get) => {
         tasks,
         steps,
         reward: { date: today, earned: earnedToday + taskPay },
+        stepsToday: { date: today, count: stepsToday + 1 },
         streakCurrent,
         streakLongest: Math.max(base.streakLongest, streakCurrent),
         lastCompletedDate: today,
@@ -524,7 +534,7 @@ export const useStore = create<Store>((set, get) => {
       const money = rewarded > 0 ? applyDelta(s, rewarded, "task", "quest") : {};
       const { achievements } = evaluate({ ...s, quest, ...money });
       commit({ quest, achievements, ...money });
-      return { rewarded, arrived };
+      return { rewarded, arrived, stepped: true };
     },
 
     openBooster: (paid) => {
@@ -535,7 +545,7 @@ export const useStore = create<Store>((set, get) => {
       if (paid && s.wallet.balance < BOOSTER_COST) return { ok: false, reason: "Not enough Turtbux." };
 
       // pay for an extra pack (free pack consumes the daily slot instead)
-      let money = paid ? applyDelta(s, -BOOSTER_COST, "booster", "booster") : {};
+      let money = paid ? applyDelta(s, -BOOSTER_COST, "booster_open", "booster") : {};
 
       const pulled = pullBooster();
       const collection = { ...(s.collection ?? {}) };
@@ -547,7 +557,7 @@ export const useStore = create<Store>((set, get) => {
         return { card, isNew };
       });
 
-      if (rewarded > 0) money = applyDelta({ ...s, ...money }, rewarded, "booster", "booster");
+      if (rewarded > 0) money = applyDelta({ ...s, ...money }, rewarded, "booster_reward", "booster");
       const patch: Partial<AppState> = { collection, ...money };
       if (!paid) patch.lastBoosterOn = today;
       const { achievements } = evaluate({ ...s, collection, ...money });
@@ -616,7 +626,6 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
   };
   const entries = Object.values(s.entries);
   const streak = computeStreak(s.entries);
-  const factsRead = Object.keys(s.factsRead).length;
   const owned = Object.keys(s.inventory).length;
   const equippedCats = new Set(
     Object.entries(s.inventory)
@@ -632,8 +641,9 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
   if (entries.some((e) => e.state === "shielded")) earn("first_shield");
   if (entries.some((e) => e.state === "ai_rescued")) earn("first_rescue");
   const collected = Object.keys(s.collection ?? {}).length;
-  if (factsRead >= 5 || collected >= 5) earn("facts_5");
+  if (collected >= 5) earn("facts_5");
   if (collected >= 100) earn("facts_all");
+  if (collected >= TOTAL_CARDS) earn("pondex");
   if (Object.keys(s.collection ?? {}).some((id) => id.startsWith("r-"))) earn("fact_collector");
   if (owned >= 1) earn("shopper");
   if (s.wallet.lifetimeEarned >= 1500) earn("rich");

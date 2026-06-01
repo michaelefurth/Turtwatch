@@ -6,13 +6,13 @@ import { Card, PillButton } from "@/components/common";
 import { MoodPicker } from "@/components/MoodPicker";
 import { TagInput } from "@/components/TagInput";
 import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
-import { ACHIEVEMENTS } from "@/data/achievements";
 import { computeStreak } from "@/logic/streak";
 import { estimateUpload } from "@/logic/turtbux";
 import { todayKey, prettyDate, isFuture } from "@/logic/dates";
 import { fileToStorableDataUrl } from "@/lib/image";
 import { generateTurtleName } from "@/data/turtleNames";
 import { POOLS } from "@/lib/variety";
+import { useSheetFocus } from "@/hooks/useSheetFocus";
 import type { Mood, PhotoSource } from "@/types";
 
 interface Receipt {
@@ -44,6 +44,7 @@ export function DailyUpload() {
   const [useLocation, setUseLocation] = useState(!!existing?.location);
   const [locationLabel, setLocationLabel] = useState(existing?.location?.label ?? "");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const receiptRef = useSheetFocus<HTMLDivElement>(!!receipt, () => nav("/"));
 
   const streakNow = useMemo(() => computeStreak(entries).current, [entries]);
   const hasNotes = notes.trim().length >= 10;
@@ -79,10 +80,7 @@ export function DailyUpload() {
     const reward = isEditing ? update(date, draft) : save(draft);
     const jackpot = reward.parts.some((p) => p.label.includes("milestone") || p.label.includes("Golden")) || reward.total >= 45;
     celebrate(jackpot ? POOLS.perfect : POOLS.upload);
-    reward.newAchievements.forEach((id, i) => {
-      const a = ACHIEVEMENTS.find((x) => x.id === id);
-      if (a) setTimeout(() => toast(`Achievement: ${a.title}`, a.emoji), 700 + i * 250);
-    });
+    // achievement toasts are surfaced globally by AppShell's watcher
 
     if (isEditing) {
       toast(reward.total > 0 ? `+${reward.total} Turtbux! 🪙` : "Saved! 💾", "🐢");
@@ -176,9 +174,9 @@ export function DailyUpload() {
 
       {receipt && (
         <div className="scrim" onClick={() => nav("/")}>
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="Reward summary" onClick={(e) => e.stopPropagation()}>
+          <div ref={receiptRef} className="sheet" role="dialog" aria-modal="true" aria-labelledby="receipt-title" onClick={(e) => e.stopPropagation()}>
             <div className="center" style={{ fontSize: 40 }}>🐢✨</div>
-            <h2 className="center" style={{ margin: "4px 0 10px" }}>Turtle saved!</h2>
+            <h2 id="receipt-title" className="center" style={{ margin: "4px 0 10px" }}>Turtle saved!</h2>
             <div className="stack" style={{ gap: 6 }}>
               {receipt.parts.map((p, i) => (
                 <div key={i} className="between">

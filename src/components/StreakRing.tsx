@@ -16,7 +16,7 @@ export function StreakRing({ current, longest, atRisk }: Props) {
   const id = raw.replace(/[:]/g, "");
 
   return (
-    <div className="ring-wrap">
+    <div className="ring-wrap" role="img" aria-label={`${current}-day streak${atRisk ? " (at risk — upload today)" : ""}. Longest: ${longest} days.`}>
       <div className="ring">
         <svg width="168" height="168" aria-hidden>
           <defs>

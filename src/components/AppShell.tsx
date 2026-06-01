@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { TabBar } from "./TabBar";
 import { useFeedback } from "./feedback";
 import { useStore } from "@/store/useStore";
 import { themeById } from "@/data/shopItems";
+import { ACHIEVEMENTS } from "@/data/achievements";
 import { useReminders } from "@/hooks/useReminders";
 import { useCloudAutoBackup } from "@/hooks/useCloudAutoBackup";
 
@@ -71,6 +72,21 @@ export function AppShell() {
     const onErr = () => toast("Couldn't save — storage is full 😬", "💾");
     window.addEventListener("turtwatch:storage-error", onErr);
     return () => window.removeEventListener("turtwatch:storage-error", onErr);
+  }, [toast]);
+
+  // surface newly-earned achievements from ANY source (upload, game, mantra,
+  // trek, booster, login…) — actions write to `achievements`; we toast the diff
+  const seenAch = useRef(new Set(Object.keys(useStore.getState().achievements)));
+  useEffect(() => {
+    return useStore.subscribe((s) => {
+      for (const id of Object.keys(s.achievements)) {
+        if (!seenAch.current.has(id)) {
+          seenAch.current.add(id);
+          const a = ACHIEVEMENTS.find((x) => x.id === id);
+          if (a) toast(`Achievement: ${a.title}`, a.emoji);
+        }
+      }
+    });
   }, [toast]);
 
   // apply theme palette as CSS custom properties

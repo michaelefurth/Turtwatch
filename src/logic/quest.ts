@@ -31,6 +31,7 @@ export const LANDMARKS: Landmark[] = [
 export const STEPS_PER_LEG = 8;
 export const TASK_REWARD = 4; // Turtbux per completed task
 export const TASK_DAILY_CAP = 24; // daily Turtbux cap from tasks
+export const STEP_DAILY_CAP = 12; // max journey steps per day (anti-farm)
 export const LEG_BONUS = 20; // bonus for reaching a new place
 
 export function reachedCount(steps: number): number {

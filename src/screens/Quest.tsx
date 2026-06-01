@@ -5,10 +5,12 @@ import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Card, PillButton, EmptyState } from "@/components/common";
 import {
-  STEPS_PER_LEG, TASK_DAILY_CAP, destinationFor, lastReached, progressInLeg,
+  STEPS_PER_LEG, TASK_DAILY_CAP, LEG_BONUS, destinationFor, lastReached, progressInLeg,
   reachedCount, questStreakDisplay, type Landmark,
 } from "@/logic/quest";
 import { todayKey, yesterdayKey } from "@/logic/dates";
+import { POOLS } from "@/lib/variety";
+import { useSheetFocus } from "@/hooks/useSheetFocus";
 
 const SUGGESTIONS = ["Upload a turtle 📸", "Read a turtle fact 📖", "Do a mantra 🧘", "Drink some water 💧", "Take a short walk 🚶", "Tidy one thing 🧹", "Stretch for a minute 🤸", "Message a friend 💌"];
 
@@ -23,8 +25,20 @@ export function Quest() {
 
   const [text, setText] = useState("");
   const [arrival, setArrival] = useState<Landmark | null>(null);
+  const arrivalRef = useSheetFocus<HTMLDivElement>(!!arrival, () => setArrival(null));
 
-  useEffect(() => { ensureDaily(); }, [ensureDaily]);
+  // roll the day over on mount and whenever the app regains focus (covers
+  // sessions left open across midnight)
+  useEffect(() => {
+    ensureDaily();
+    const onFocus = () => ensureDaily();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [ensureDaily]);
 
   const today = todayKey();
   const yesterday = yesterdayKey();
@@ -40,10 +54,16 @@ export function Quest() {
 
   const onToggle = (id: string, wasDone: boolean) => {
     const res = toggleTask(id);
-    if (!wasDone && res.rewarded > 0) {
-      celebrate(res.arrived ? ["🗺️", "🐢", "✨", "🎉"] : ["🐢", "🌿", "✨", "🪷"]);
-      toast(res.arrived ? `Arrived at ${res.arrived.name}! +${res.rewarded} 🪙` : `Goal done! +${res.rewarded} 🪙`, res.arrived ? res.arrived.emoji : "✅");
-      if (res.arrived) setArrival(res.arrived);
+    if (wasDone) return;
+    if (res.arrived) {
+      celebrate(POOLS.trek);
+      toast(`Arrived at ${res.arrived.name}! +${res.rewarded} 🪙`, res.arrived.emoji);
+      setArrival(res.arrived);
+    } else if (res.rewarded > 0) {
+      celebrate(["🐢", "🌿", "✨", "🪷"]);
+      toast(`Goal done! +${res.rewarded} 🪙`, "✅");
+    } else if (res.stepped) {
+      toast("Goal done! Your turtle swims onward 🐢", "🐢");
     }
   };
 
@@ -78,7 +98,7 @@ export function Quest() {
             className="trek-turtle"
             aria-hidden
             initial={false}
-            animate={{ left: `${(prog / STEPS_PER_LEG) * 82 + 4}%` }}
+            animate={{ left: `${(prog / (STEPS_PER_LEG - 1)) * 84 + 4}%` }}
             transition={{ type: "spring", stiffness: 260, damping: 22 }}
           >
             🐢
@@ -147,9 +167,11 @@ export function Quest() {
         {arrival && (
           <div className="scrim" onClick={() => setArrival(null)}>
             <motion.div
+              ref={arrivalRef}
               className="sheet center"
               role="dialog"
               aria-modal="true"
+              aria-labelledby="arrival-title"
               onClick={(e) => e.stopPropagation()}
               initial={{ y: 60, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -157,9 +179,9 @@ export function Quest() {
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
             >
               <div style={{ fontSize: 56 }}>{arrival.emoji}</div>
-              <h2 style={{ margin: "4px 0" }}>You reached {arrival.name}!</h2>
+              <h2 id="arrival-title" style={{ margin: "4px 0" }}>You reached {arrival.name}!</h2>
               <p className="muted" style={{ marginTop: 0 }}>{arrival.lore}</p>
-              <span className="chip gold">+20 Turtbux bonus 🪙</span>
+              <span className="chip gold">+{LEG_BONUS} Turtbux bonus 🪙</span>
               <div className="mt"><PillButton onClick={() => setArrival(null)}>Keep swimming 🐢</PillButton></div>
             </motion.div>
           </div>

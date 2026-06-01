@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useStore } from "./useStore";
 import { addDays, todayKey } from "@/logic/dates";
+import { STEP_DAILY_CAP } from "@/logic/quest";
 import type { TurtleEntry } from "@/types";
 
 function entry(date: string, state: TurtleEntry["state"] = "completed"): TurtleEntry {
@@ -51,7 +52,7 @@ describe("store: mini-game & mantra rewards", () => {
   it("caps daily game Turtbux but still counts the win", () => {
     // first win awards up to the cap; a huge amount is clamped
     const got = useStore.getState().awardGameReward(999);
-    expect(got).toBeLessThanOrEqual(30);
+    expect(got).toBeLessThanOrEqual(25); // cap 20 + max lucky flip 5
     const before = useStore.getState().wallet.balance;
     useStore.getState().awardGameReward(999); // cap already hit → 0 Turtbux
     expect(useStore.getState().wallet.balance).toBe(before);
@@ -72,12 +73,35 @@ describe("store: booster packs", () => {
   });
 
   it("can buy an extra pack with Turtbux", () => {
-    useStore.getState().completeOnboarding({}); // +50 Turtbux
-    const before = useStore.getState().wallet.balance;
+    useStore.setState({ wallet: { balance: 100, lifetimeEarned: 100, lifetimeSpent: 0 } });
+    const before = 100;
     const r = useStore.getState().openBooster(true);
     expect(r.ok).toBe(true);
-    // spent 40, then gained the pack reward
-    expect(useStore.getState().wallet.balance).toBe(before - 40 + (r.rewarded ?? 0));
+    // spent BOOSTER_COST (60), then gained the pack reward
+    expect(useStore.getState().wallet.balance).toBe(before - 60 + (r.rewarded ?? 0));
+  });
+});
+
+describe("store: turtle trek", () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it("a goal advances the turtle and pays once per day", () => {
+    useStore.getState().addTask("Walk the pond");
+    const id = useStore.getState().quest!.tasks[0].id;
+    const r = useStore.getState().toggleTask(id);
+    expect(r.stepped).toBe(true);
+    expect(useStore.getState().quest!.steps).toBe(1);
+    // untick then re-tick the same day → no extra step or pay
+    useStore.getState().toggleTask(id);
+    const r2 = useStore.getState().toggleTask(id);
+    expect(r2.stepped).toBe(false);
+    expect(useStore.getState().quest!.steps).toBe(1);
+  });
+
+  it("caps daily steps even when farming via many tasks", () => {
+    for (let i = 0; i < 30; i++) useStore.getState().addTask("Goal " + i);
+    for (const t of [...useStore.getState().quest!.tasks]) useStore.getState().toggleTask(t.id);
+    expect(useStore.getState().quest!.steps).toBeLessThanOrEqual(STEP_DAILY_CAP);
   });
 });
 

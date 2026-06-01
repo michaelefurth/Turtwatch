@@ -22,9 +22,9 @@ export const LOGIN_STREAK_TIERS: Record<number, number> = {
   14: 10,
   30: 25,
   60: 25,
-  100: 50,
-  180: 75,
-  365: 100,
+  100: 30,
+  180: 50,
+  365: 75,
 };
 
 export function loginBonus(streak: number): number {

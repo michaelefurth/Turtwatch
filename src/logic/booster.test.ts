@@ -22,8 +22,9 @@ describe("booster pulls", () => {
     expect(pack).toHaveLength(BOOSTER_SIZE);
     for (const c of pack) expect(factCardById(c.id)).toBeTruthy();
   });
-  it("pullCard is deterministic for a fixed rng", () => {
-    expect(pullCard(() => 0).id).toBe(ALL_FACT_CARDS[0].id);
+  it("pulls by rarity bucket (two-stage): low roll = common, high roll = legendary", () => {
+    expect(pullCard(() => 0).rarity).toBe("common");
+    expect(pullCard(() => 0.99).rarity).toBe("legendary");
   });
 });
 

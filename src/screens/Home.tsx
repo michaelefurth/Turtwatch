@@ -6,6 +6,7 @@ import { Mascot, type MascotMood } from "@/components/Mascot";
 import { StreakRing } from "@/components/StreakRing";
 import { Card, PillButton, TurtbuxChip, TurtlePhoto } from "@/components/common";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
+import { FACT_OF_DAY } from "@/logic/turtbux";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
 import { equippedAccessory, equippedFrame, equippedSticker, findMemory } from "@/store/selectors";
@@ -178,7 +179,7 @@ export function Home() {
             </div>
           </div>
           {factClaimedOn !== today ? (
-            <span className="chip gold">🪙 +2</span>
+            <span className="chip gold">🪙 +{FACT_OF_DAY}</span>
           ) : (
             <span className="chip">Read ✓</span>
           )}

@@ -4,25 +4,29 @@
 import { ALL_FACT_CARDS, RARITY, type FactCardDef, type CardRarity } from "@/data/factCards";
 
 export const BOOSTER_SIZE = 3;
-export const BOOSTER_COST = 40; // Turtbux to buy an extra pack (a sink)
+export const BOOSTER_COST = 60; // Turtbux to buy an extra pack (a sink)
 export const DUPLICATE_REWARD = 1;
 
-// precompute a cumulative weight table once
-const TABLE = (() => {
-  let total = 0;
-  const cum: { card: FactCardDef; upto: number }[] = [];
-  for (const card of ALL_FACT_CARDS) {
-    total += RARITY[card.rarity].weight;
-    cum.push({ card, upto: total });
-  }
-  return { total, cum };
+// Two-stage pull so the stated 60/25/12/3 rarity rates actually hold:
+// (1) pick a rarity by its weight, (2) sample uniformly within that rarity.
+// (A single per-card cumulative table would compound rarity weight with the
+// number of cards in each tier, making legendaries ~15x rarer than intended.)
+const RARITIES: CardRarity[] = ["common", "rare", "epic", "legendary"];
+const BY_RARITY = new Map<CardRarity, FactCardDef[]>(
+  RARITIES.map((r) => [r, ALL_FACT_CARDS.filter((c) => c.rarity === r)]),
+);
+const RARITY_CUM = (() => {
+  const total = RARITIES.reduce((s, r) => s + RARITY[r].weight, 0);
+  let cum = 0;
+  return RARITIES.map((r) => ({ rarity: r, upto: (cum += RARITY[r].weight) / total }));
 })();
 
 export function pullCard(rng: () => number = Math.random): FactCardDef {
-  const r = rng() * TABLE.total;
-  // binary-ish linear scan is fine for a few hundred entries
-  for (const e of TABLE.cum) if (r < e.upto) return e.card;
-  return TABLE.cum[TABLE.cum.length - 1].card;
+  const roll = rng();
+  let bucket = RARITY_CUM.find((e) => roll < e.upto)?.rarity ?? "common";
+  let pool = BY_RARITY.get(bucket)!;
+  if (pool.length === 0) pool = BY_RARITY.get("common")!; // safety
+  return pool[Math.floor(rng() * pool.length)] ?? ALL_FACT_CARDS[0];
 }
 
 export function pullBooster(rng: () => number = Math.random): FactCardDef[] {

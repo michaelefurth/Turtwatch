@@ -7,6 +7,7 @@ import { ALL_FACT_CARDS, RARITY, type CardRarity, type FactCardDef } from "@/dat
 import { BOOSTER_COST, TOTAL_CARDS } from "@/logic/booster";
 import { POOLS } from "@/lib/variety";
 import { todayKey } from "@/logic/dates";
+import { useSheetFocus } from "@/hooks/useSheetFocus";
 
 const FILTERS: { id: CardRarity | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -26,6 +27,8 @@ export function FactsLibrary() {
   const [filter, setFilter] = useState<CardRarity | "all">("all");
   const [reveal, setReveal] = useState<{ card: FactCardDef; isNew: boolean }[] | null>(null);
   const [detail, setDetail] = useState<FactCardDef | null>(null);
+  const revealRef = useSheetFocus<HTMLDivElement>(!!reveal, () => setReveal(null));
+  const detailRef = useSheetFocus<HTMLDivElement>(!!detail, () => setDetail(null));
 
   const collectedCount = Object.keys(collection).length;
   const freeReady = lastBoosterOn !== todayKey();
@@ -94,10 +97,10 @@ export function FactsLibrary() {
           return (
             <button
               key={c.id}
-              className="collect-card"
+              className={`collect-card ${owned ? "" : "locked"}`}
               style={{ background: owned ? `color-mix(in srgb, ${RARITY[c.rarity].color} 26%, var(--surface))` : "var(--line)" }}
-              onClick={() => owned && setDetail(c)}
-              aria-label={owned ? `${RARITY[c.rarity].label} card` : "Undiscovered card"}
+              onClick={() => (owned ? setDetail(c) : toast("Keep opening packs to find this one! 🐢", "❔"))}
+              aria-label={owned ? `${RARITY[c.rarity].label} card, owned${count > 1 ? `, ${count} copies` : ""}` : "Undiscovered card"}
             >
               <span style={{ fontSize: 26, filter: owned ? "none" : "grayscale(1) opacity(0.5)" }} aria-hidden>{owned ? c.emoji : "❔"}</span>
               <span className="collect-rarity" style={{ color: owned ? "var(--text)" : "var(--muted)" }}>{owned ? RARITY[c.rarity].label : "???"}</span>
@@ -111,8 +114,8 @@ export function FactsLibrary() {
       <AnimatePresence>
         {reveal && (
           <div className="scrim" onClick={() => setReveal(null)}>
-            <motion.div className="sheet center" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}>
-              <h2 style={{ marginTop: 0 }}>Pack opened! 🎉</h2>
+            <motion.div ref={revealRef} className="sheet center" role="dialog" aria-modal="true" aria-labelledby="reveal-title" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}>
+              <h2 id="reveal-title" style={{ marginTop: 0 }}>Pack opened! 🎉</h2>
               <div className="row" style={{ justifyContent: "center", gap: 10 }}>
                 {reveal.map((r, i) => (
                   <motion.div
@@ -142,10 +145,10 @@ export function FactsLibrary() {
       <AnimatePresence>
         {detail && (
           <div className="scrim" onClick={() => setDetail(null)}>
-            <motion.div className="sheet center" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${RARITY[detail.rarity].color} 30%, var(--surface)), var(--surface))` }}>
+            <motion.div ref={detailRef} className="sheet center" role="dialog" aria-modal="true" aria-labelledby="detail-title" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${RARITY[detail.rarity].color} 30%, var(--surface)), var(--surface))` }}>
               <div style={{ fontSize: 48 }}>{detail.emoji}</div>
               <span className="chip" style={{ background: RARITY[detail.rarity].color, color: "#3a4a3f" }}>{RARITY[detail.rarity].label}</span>
-              <p style={{ fontWeight: 700, fontSize: 15, margin: "10px 4px" }}>{detail.text}</p>
+              <p id="detail-title" style={{ fontWeight: 700, fontSize: 15, margin: "10px 4px" }}>{detail.text}</p>
               <PillButton onClick={() => setDetail(null)}>Nice 🐢</PillButton>
             </motion.div>
           </div>

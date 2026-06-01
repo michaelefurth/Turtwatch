@@ -10,6 +10,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "first_rescue", title: "AI Whisperer", description: "Use AI Turtle Rescue.", emoji: "✨" },
   { id: "facts_5", title: "Curious Turtle", description: "Collect 5 fact cards.", emoji: "📖" },
   { id: "facts_all", title: "Turtle Scholar", description: "Collect 100 fact cards.", emoji: "🎓" },
+  { id: "pondex", title: "Complete Pondex", description: "Collect every fact card.", emoji: "🏅" },
   { id: "fact_collector", title: "Real-Deal Collector", description: "Collect a genuine turtle-fact card.", emoji: "🃏" },
   { id: "shopper", title: "Pond Shopper", description: "Buy your first shop item.", emoji: "🛍️" },
   { id: "rich", title: "Turtbux Tycoon", description: "Earn 1,500 Turtbux in total.", emoji: "🪙" },
