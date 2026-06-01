@@ -56,8 +56,8 @@ export function Feed() {
       <div className="row wrap gap8">
         <button className={`chip ${mood === "all" && name === "all" ? "selected" : "outline"}`} onClick={() => { setMood("all"); setName("all"); }}>All</button>
         {MOODS.map((m) => (
-          <button key={m.id} className={`chip ${mood === m.id ? "selected" : "outline"}`} aria-pressed={mood === m.id} onClick={() => setMood(mood === m.id ? "all" : m.id)}>
-            {m.emoji}
+          <button key={m.id} className={`chip ${mood === m.id ? "selected" : "outline"}`} aria-pressed={mood === m.id} aria-label={`Filter by ${m.label}`} title={m.label} onClick={() => setMood(mood === m.id ? "all" : m.id)}>
+            <span aria-hidden>{m.emoji}</span>
           </button>
         ))}
       </div>

@@ -97,7 +97,7 @@ export function TurtlePhoto({
 }) {
   return (
     <span className="photo-wrap" style={{ width: size, ...style }}>
-      <img src={src} alt="" aria-hidden className={frameClass} style={{ width: size ?? "100%", height: size, aspectRatio: size ? undefined : "1", objectFit: "cover", borderRadius: radius, display: "block" }} />
+      <img src={src} alt="" aria-hidden loading="lazy" decoding="async" className={frameClass} style={{ width: size ?? "100%", height: size, aspectRatio: size ? undefined : "1", objectFit: "cover", borderRadius: radius, display: "block" }} />
       {sticker && <span className="sticker-badge" aria-hidden>{sticker}</span>}
     </span>
   );
