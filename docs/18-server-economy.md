@@ -30,6 +30,13 @@ fully **local** and offline — nothing changes.
   `balance ≥ 0` and `balance == Σledger` invariants hold on the server.
 
 ## Deploy
+
+**One-file option (easiest):** paste **`supabase/schema.sql`** into the Supabase
+SQL editor and run it once on a fresh project. It contains everything — core
+schema, server-authoritative economy, the 336-card seed, push tables, and the
+`turtles` storage bucket + policies.
+
+**Or via the CLI (incremental migrations):**
 ```bash
 supabase db push          # applies 0001…0006 (incl. server economy + card seed)
 # (regenerate the card seed if you change factCards.ts:)

@@ -31,6 +31,17 @@ create index if not exists task_item_user on task_item (user_id);
 alter table task_item enable row level security;
 create policy "own_task_all" on task_item for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+-- card catalog (seeded by 0006). rarity is TEXT to avoid extending the rarity_t
+-- enum (which lacks 'epic') inside a transaction.
+create table if not exists fact_card (
+  id     text primary key,
+  text   text not null,
+  rarity text not null,
+  emoji  text not null
+);
+alter table fact_card enable row level security;
+create policy "cards_read" on fact_card for select using (true);
+
 create table if not exists user_card (
   user_id uuid references app_user(id) on delete cascade,
   card_id text references fact_card(id) on delete cascade,
@@ -38,9 +49,8 @@ create table if not exists user_card (
   primary key (user_id, card_id)
 );
 alter table user_card enable row level security;
-create policy "own_card_all" on user_card for all using (user_id = auth.uid()) with check (user_id = auth.uid());
-alter table fact_card enable row level security;
-create policy "cards_read" on fact_card for select using (true);
+-- read-only to clients; collection grows only via SECURITY DEFINER functions
+create policy "own_card_select" on user_card for select using (user_id = auth.uid());
 
 -- ---------- helpers ----------
 create or replace function milestone_bonus(p_streak integer) returns integer language sql immutable as $$
@@ -61,11 +71,11 @@ begin
   v_note := coalesce(length(btrim(p_notes)), 0) >= 10;
   v_meta := p_mood is not null and coalesce(array_length(p_tags, 1), 0) > 0;
 
+  -- the AFTER INSERT trigger recomputes the streak; then read it for the reward
   insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, turtle_name, mood, notes, tags, location_label, bonus_note, bonus_meta)
   values (v_user, p_date, 'completed', p_photo, 'library', p_name, p_mood, p_notes, coalesce(p_tags, '{}'), p_loc, v_note, v_meta)
   returning id into v_entry;
 
-  perform recompute_streak(v_user);
   select current into v_streak from streak where user_id = v_user;
 
   v_reward := 10 + least(v_streak, 30) + milestone_bonus(v_streak)
@@ -73,7 +83,9 @@ begin
   if random() < 0.08 then v_golden := 15; v_reward := v_reward + 15; end if;
 
   update turtle_entry set earned_turtbux = v_reward where id = v_entry;
-  v_balance := apply_turtbux(v_reward, 'upload', 'entry', p_date::text, 'upload:' || p_date::text);
+  -- no idempotency key: the UNIQUE(user_id,entry_date) guard already prevents
+  -- double-credit, and a fresh re-upload after a delete must credit again
+  v_balance := apply_turtbux(v_reward, 'upload', 'entry', p_date::text);
   return jsonb_build_object('balance', v_balance, 'earned', v_reward, 'streak', v_streak, 'golden', v_golden);
 end $$;
 
@@ -84,10 +96,9 @@ declare v_user uuid := auth.uid(); v_balance int;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
   if exists (select 1 from turtle_entry where user_id = v_user and entry_date = p_date) then raise exception 'ENTRY_EXISTS'; end if;
-  v_balance := apply_turtbux(-30, 'repair', 'entry', p_date::text);
+  v_balance := apply_turtbux(-30, 'repair', 'entry', p_date::text, 'repair:' || p_date::text);
   insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, tags)
   values (v_user, p_date, 'repaired', p_photo, 'library', array['backfilled']);
-  perform recompute_streak(v_user);
   return jsonb_build_object('balance', v_balance);
 end $$;
 
@@ -97,38 +108,43 @@ declare v_user uuid := auth.uid(); v_balance int;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
   if exists (select 1 from turtle_entry where user_id = v_user and entry_date = p_date) then raise exception 'ENTRY_EXISTS'; end if;
-  v_balance := apply_turtbux(-60, 'ai_rescue', 'entry', p_date::text);
+  v_balance := apply_turtbux(-60, 'ai_rescue', 'entry', p_date::text, 'ai_rescue:' || p_date::text);
   insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, turtle_name, tags)
   values (v_user, p_date, 'ai_rescued', p_photo, 'ai', 'Mystery AI Turtle', array['ai-rescued']);
-  perform recompute_streak(v_user);
   return jsonb_build_object('balance', v_balance);
 end $$;
 
 -- ---------- daily bonuses ----------
 create or replace function srv_login_bonus(p_date date) returns jsonb
   language plpgsql security definer set search_path = public as $$
-declare v_user uuid := auth.uid(); v_streak int; v_tier int := 0; v_total int; v_balance int;
+declare v_user uuid := auth.uid(); v_streak int; v_tier int := 0; v_total int; v_balance int; v_today date; v_rows int;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
-  if (select login_bonus_on from app_user where id = v_user) = p_date then return jsonb_build_object('awarded', 0); end if;
+  -- derive "today" server-side from the user's timezone; ignore client date (anti future-claim)
+  v_today := (now() at time zone coalesce((select timezone from app_user where id = v_user), 'UTC'))::date;
+  -- atomic check-and-set: only one caller can flip the date
+  update app_user set login_bonus_on = v_today where id = v_user and login_bonus_on is distinct from v_today;
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then return jsonb_build_object('awarded', 0); end if;
   select current into v_streak from streak where user_id = v_user;
   v_tier := case
     when v_streak >= 365 then 75 when v_streak >= 180 then 50 when v_streak >= 100 then 30
     when v_streak >= 60 then 25 when v_streak >= 30 then 25 when v_streak >= 14 then 10 when v_streak >= 7 then 10 else 0 end;
   v_total := 5 + v_tier;
-  v_balance := apply_turtbux(v_total, 'daily_login', null, null, 'login:' || p_date::text);
-  update app_user set login_bonus_on = p_date where id = v_user;
+  v_balance := apply_turtbux(v_total, 'daily_login', null, null, 'login:' || v_today::text);
   return jsonb_build_object('awarded', v_total, 'balance', v_balance);
 end $$;
 
 create or replace function srv_fact_of_day(p_date date) returns jsonb
   language plpgsql security definer set search_path = public as $$
-declare v_user uuid := auth.uid(); v_balance int;
+declare v_user uuid := auth.uid(); v_balance int; v_today date; v_rows int;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
-  if (select fact_of_day_on from app_user where id = v_user) = p_date then return jsonb_build_object('awarded', 0); end if;
-  v_balance := apply_turtbux(5, 'fact_of_day', null, null, 'fod:' || p_date::text);
-  update app_user set fact_of_day_on = p_date where id = v_user;
+  v_today := (now() at time zone coalesce((select timezone from app_user where id = v_user), 'UTC'))::date;
+  update app_user set fact_of_day_on = v_today where id = v_user and fact_of_day_on is distinct from v_today;
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then return jsonb_build_object('awarded', 0); end if;
+  v_balance := apply_turtbux(5, 'fact_of_day', null, null, 'fod:' || v_today::text);
   return jsonb_build_object('awarded', 5, 'balance', v_balance);
 end $$;
 
@@ -138,7 +154,8 @@ create or replace function srv_minigame(p_date date, p_amount integer) returns j
 declare v_user uuid := auth.uid(); v_earned int; v_award int; v_balance int;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
-  select case when game_date = p_date then game_earned else 0 end into v_earned from app_user where id = v_user;
+  -- lock the row so concurrent calls can't both see an empty daily total
+  select case when game_date = p_date then game_earned else 0 end into v_earned from app_user where id = v_user for update;
   v_award := greatest(0, least(coalesce(p_amount, 0), 20 - v_earned)); -- cap 20/day; ignore inflated client amounts
   if v_award > 0 then v_balance := apply_turtbux(v_award, 'minigame', 'flipgame', null, null); end if;
   update app_user set game_date = p_date, game_earned = v_earned + v_award where id = v_user;
@@ -150,7 +167,7 @@ create or replace function srv_mantra(p_date date, p_amount integer) returns jso
 declare v_user uuid := auth.uid(); v_earned int; v_award int; v_balance int;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
-  select case when mantra_date = p_date then mantra_earned else 0 end into v_earned from app_user where id = v_user;
+  select case when mantra_date = p_date then mantra_earned else 0 end into v_earned from app_user where id = v_user for update;
   v_award := greatest(0, least(coalesce(p_amount, 0), 20 - v_earned));
   if v_award > 0 then v_balance := apply_turtbux(v_award, 'mantra', 'mantra', null, null); end if;
   update app_user set mantra_date = p_date, mantra_earned = v_earned + v_award where id = v_user;
@@ -221,25 +238,29 @@ create or replace function srv_open_booster(p_paid boolean, p_date date) returns
   language plpgsql security definer set search_path = public as $$
 declare
   v_user uuid := auth.uid(); v_balance int; v_results jsonb := '[]'::jsonb; v_total int := 0;
-  v_roll numeric; v_rarity rarity_t; v_card record; v_isNew bool; v_reward int; i int;
+  v_roll numeric; v_rarity text; v_card record; v_isNew bool; v_reward int; v_today date; v_rows int; i int;
 begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  v_today := (now() at time zone coalesce((select timezone from app_user where id = v_user), 'UTC'))::date;
   if p_paid then
     v_balance := apply_turtbux(-60, 'booster_open', 'booster', null, null);
   else
-    if (select last_booster_on from app_user where id = v_user) = p_date then raise exception 'NO_FREE_BOOSTER'; end if;
-    update app_user set last_booster_on = p_date where id = v_user;
+    -- atomic free-once-per-day: only one concurrent caller flips the date
+    update app_user set last_booster_on = v_today where id = v_user and last_booster_on is distinct from v_today;
+    get diagnostics v_rows = row_count;
+    if v_rows = 0 then raise exception 'NO_FREE_BOOSTER'; end if;
   end if;
 
   for i in 1..3 loop
     v_roll := random() * 100;
-    v_rarity := case when v_roll < 60 then 'common' when v_roll < 85 then 'rare' when v_roll < 97 then 'epic' else 'legendary' end::rarity_t;
+    v_rarity := case when v_roll < 60 then 'common' when v_roll < 85 then 'rare' when v_roll < 97 then 'epic' else 'legendary' end;
     select * into v_card from fact_card where rarity = v_rarity order by random() limit 1;
     if not found then select * into v_card from fact_card order by random() limit 1; end if;
 
-    v_isNew := not exists (select 1 from user_card where user_id = v_user and card_id = v_card.id);
+    -- atomic new-vs-dupe: xmax=0 means this row was freshly INSERTed (not updated)
     insert into user_card (user_id, card_id, copies) values (v_user, v_card.id, 1)
-      on conflict (user_id, card_id) do update set copies = user_card.copies + 1;
+      on conflict (user_id, card_id) do update set copies = user_card.copies + 1
+      returning (xmax = 0) into v_isNew;
 
     v_reward := case when v_isNew then (case v_card.rarity when 'common' then 3 when 'rare' then 8 when 'epic' then 16 else 35 end) else 1 end;
     v_total := v_total + v_reward;
@@ -273,8 +294,10 @@ begin
   end loop;
   perform recompute_streak(v_user);
 
-  v_bal := coalesce((p_state->'wallet'->>'balance')::int, 0);
-  if v_bal <> 0 then perform apply_turtbux(v_bal, 'admin', 'import', null, 'import:' || v_user::text); end if;
+  -- import the on-device balance, but hard-cap it so a tampered first-login JSON
+  -- can't mint an arbitrary amount
+  v_bal := least(greatest(coalesce((p_state->'wallet'->>'balance')::int, 0), 0), 5000);
+  if v_bal > 0 then perform apply_turtbux(v_bal, 'admin', 'import', null, 'import:' || v_user::text); end if;
 
   for rec in select * from jsonb_each(p_state->'inventory') loop
     insert into user_inventory (user_id, item_id, equipped)
@@ -302,3 +325,21 @@ begin
 
   return jsonb_build_object('imported', true);
 end $$;
+
+-- ---------- privilege lockdown ----------
+-- The raw ledger primitive must NOT be client-callable, or anyone could mint
+-- Turtbux via /rpc/apply_turtbux. Only the SECURITY DEFINER srv_* wrappers
+-- (which run as the owner) may call it.
+revoke execute on function apply_turtbux(integer, ledger_reason_t, text, text, text) from public, authenticated, anon;
+revoke execute on function recompute_streak(uuid) from public, authenticated, anon;
+
+-- Clients call only the validated, server-authoritative surface.
+grant execute on function
+  srv_upload(date, text, text, mood_t, text, text[], text),
+  srv_repair(date, text), srv_ai_rescue(date, text),
+  srv_login_bonus(date), srv_fact_of_day(date),
+  srv_minigame(date, integer), srv_mantra(date, integer),
+  srv_toggle_task(uuid, date), srv_open_booster(boolean, date),
+  srv_import_state(jsonb),
+  read_fact(text), purchase_shop_item(text, text), shield_day(date)
+  to authenticated;

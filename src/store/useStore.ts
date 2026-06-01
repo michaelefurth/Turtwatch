@@ -108,8 +108,10 @@ export const useStore = create<Store>((set, get) => {
   const commit = (patch: Partial<AppState>) => {
     set(patch as never);
     const s = get();
-    // economy invariant: balance must equal the sum of all ledger deltas
-    if (import.meta.env.DEV) {
+    // economy invariant: balance must equal the sum of all ledger deltas.
+    // Skip in cloud mode, where the server's authoritative balance is patched in
+    // without a matching local ledger entry.
+    if (import.meta.env.DEV && !isCloudMode()) {
       const sum = s.ledger.reduce((acc, e) => acc + e.delta, 0);
       if (sum !== s.wallet.balance) {
         console.warn(`[turtbux] ledger drift: balance=${s.wallet.balance} sum=${sum}`);

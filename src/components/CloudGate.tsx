@@ -46,16 +46,21 @@ export function CloudGate({ children }: { children: ReactNode }) {
     const { data } = sb.auth.onAuthStateChange((_e, session) => onSession(!!session));
     return () => {
       mounted = false;
+      setup.current = false; // allow re-setup after a StrictMode remount
+      setEconomyReconciler(null);
       data.subscription.unsubscribe();
     };
   }, []);
 
-  // keep profile + notification prefs synced to the server (debounced)
+  // keep profile + notification prefs synced to the server (debounced).
+  // Subscribe once; gate on readiness via a ref so we don't tear down per phase.
+  const ready = useRef(false);
+  ready.current = phase === "ready";
   useEffect(() => {
     if (!isSupabaseEnabled) return;
     let t: ReturnType<typeof setTimeout> | null = null;
     const unsub = useStore.subscribe((s, prev) => {
-      if (phase !== "ready") return;
+      if (!ready.current) return;
       if (s.profile === prev.profile && s.notifications === prev.notifications) return;
       if (t) clearTimeout(t);
       t = setTimeout(async () => {
@@ -68,7 +73,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
       }, 1500);
     });
     return () => { unsub(); if (t) clearTimeout(t); };
-  }, [phase]);
+  }, []);
 
   if (phase === "loading") {
     return (

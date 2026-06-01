@@ -7,11 +7,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppState } from "@/types";
 import { getSupabase } from "@/lib/supabase";
-import { persistPhoto } from "@/lib/storage";
+import { isDataUrl, dataUrlToBlob } from "@/lib/image";
+import { SupabaseImageStorage } from "@/lib/storage/supabaseStorage";
 import { rowToEntry } from "@/data/repository";
+import { factCardById } from "@/data/factCards";
 import { makeInitialState } from "@/store/initialState";
 import { useStore, type EconomyKind } from "@/store/useStore";
 import { todayKey } from "@/logic/dates";
+
+const localDate = (iso?: string) => (iso ? iso.slice(0, 10) : undefined);
+
+/** In cloud mode, always push inline photos to Supabase Storage (never send a
+ *  multi-MB data URL through an RPC), regardless of VITE_IMAGE_STORAGE. */
+async function cloudPersistPhoto(key: string, photoUrl?: string): Promise<string | undefined> {
+  if (!isDataUrl(photoUrl)) return photoUrl;
+  try {
+    return await new SupabaseImageStorage().upload(key, dataUrlToBlob(photoUrl));
+  } catch {
+    return undefined; // skip the photo rather than blow up the RPC payload
+  }
+}
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 const sbOrThrow = (): SupabaseClient => {
@@ -87,7 +102,25 @@ export async function loadCloudState(): Promise<AppState | null> {
     notifications: n
       ? { dailyReminderEnabled: n.daily_reminder_enabled ?? true, reminderTime: n.reminder_time ?? "19:00", streakRiskEnabled: n.streak_risk_enabled ?? true, factOfDayEnabled: n.fact_of_day_enabled ?? false, soundEnabled: false, hapticsEnabled: true }
       : base.notifications,
+    // daily flags so the UI reflects what the server has already granted today
+    lastBoosterOn: localDate((u as { last_booster_on?: string }).last_booster_on),
+    loginBonusClaimedOn: localDate((u as { login_bonus_on?: string }).login_bonus_on),
+    factOfDayClaimedOn: localDate((u as { fact_of_day_on?: string }).fact_of_day_on),
+    game: (u as { game_date?: string }).game_date ? { date: localDate((u as { game_date?: string }).game_date)!, earned: (u as { game_earned?: number }).game_earned ?? 0 } : undefined,
+    mantra: (u as { mantra_date?: string }).mantra_date ? { date: localDate((u as { mantra_date?: string }).mantra_date)!, earned: (u as { mantra_earned?: number }).mantra_earned ?? 0 } : undefined,
   };
+}
+
+/** Server-authoritative booster open (cloud mode): the SERVER rolls the cards. */
+export async function cloudOpenBooster(paid: boolean): Promise<{ ok: boolean; reason?: string; cards?: { card: import("@/data/factCards").FactCardDef; isNew: boolean }[]; rewarded?: number }> {
+  const sb = getSupabase();
+  if (!sb) return { ok: false, reason: "Cloud not configured" };
+  const { data, error } = await sb.rpc("srv_open_booster", { p_paid: paid, p_date: todayKey() });
+  if (error) return { ok: false, reason: error.message.includes("NO_FREE_BOOSTER") ? "Your free booster is tomorrow!" : error.message };
+  const rows = ((data as { cards?: { id: string; isNew: boolean }[] })?.cards) ?? [];
+  const cards = rows.map((r) => ({ card: factCardById(r.id)!, isNew: r.isNew })).filter((c) => c.card);
+  await rehydrate(); // collection + wallet are now authoritative server-side
+  return { ok: true, cards, rewarded: (data as { rewarded?: number })?.rewarded };
 }
 
 /** Re-hydrate the local store from the server (used as rollback / refresh). */
@@ -99,7 +132,12 @@ export async function rehydrate(): Promise<void> {
 /** Push existing on-device data to a fresh cloud account (first sign-in, once). */
 export async function migrateLocalUp(local: AppState): Promise<void> {
   const sb = getSupabase();
-  if (!sb || Object.keys(local.entries).length === 0) return;
+  const hasData =
+    Object.keys(local.entries).length > 0 ||
+    (local.wallet?.balance ?? 0) > 0 ||
+    Object.keys(local.inventory ?? {}).length > 0 ||
+    Object.keys(local.collection ?? {}).length > 0;
+  if (!sb || !hasData) return;
   await sb.rpc("srv_import_state", { p_state: local as unknown as Record<string, unknown> });
 }
 
@@ -116,7 +154,7 @@ export async function economyReconcile(kind: EconomyKind, payload: unknown): Pro
 
     switch (kind) {
       case "upload": {
-        const photo = await persistPhoto(`${uidv}/${p.date}`, (p.draft as { photoUrl?: string })?.photoUrl);
+        const photo = await cloudPersistPhoto(`${uidv}/${p.date}`, (p.draft as { photoUrl?: string })?.photoUrl);
         const d = p.draft as { turtleName?: string; mood?: string; notes?: string; tags?: string[]; location?: { label?: string } };
         const { data, error } = await sb.rpc("srv_upload", { p_date: p.date, p_photo: photo ?? null, p_name: d.turtleName ?? null, p_mood: d.mood ?? null, p_notes: d.notes ?? null, p_tags: d.tags ?? [], p_loc: d.location?.label ?? null });
         if (error) throw error;
@@ -125,7 +163,7 @@ export async function economyReconcile(kind: EconomyKind, payload: unknown): Pro
       }
       case "repair":
       case "ai_rescue": {
-        const photo = await persistPhoto(`${uidv}/${p.date}`, (kind === "repair" ? (p.draft as { photoUrl?: string })?.photoUrl : (p.photoUrl as string)) ?? undefined);
+        const photo = await cloudPersistPhoto(`${uidv}/${p.date}`, (kind === "repair" ? (p.draft as { photoUrl?: string })?.photoUrl : (p.photoUrl as string)) ?? undefined);
         const fn = kind === "repair" ? "srv_repair" : "srv_ai_rescue";
         const { data, error } = await sb.rpc(fn, { p_date: p.date, p_photo: photo ?? null });
         if (error) throw error;

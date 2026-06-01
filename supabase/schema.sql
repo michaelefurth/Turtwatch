@@ -1,0 +1,1191 @@
+-- ============================================================================
+-- TurtWatch — COMPLETE schema in one file. Apply once to a fresh Supabase
+-- project (SQL editor) or via: supabase db reset. Includes core schema, the
+-- server-authoritative economy, the fact-card seed, push, and the storage
+-- bucket + policies. (Concatenation of supabase/migrations/* + storage.)
+-- ============================================================================
+
+-- ====================== 0001_init.sql ======================
+-- TurtWatch — P1 schema, RLS, and server-authoritative economy.
+-- Run with: supabase db reset  (local)  or  supabase db push  (remote).
+-- Mirrors docs/04-data-model.md & docs/10-database-schema.sql, hardened for prod.
+
+create extension if not exists "pgcrypto";
+
+-- ============================================================ enums
+create type mascot_t        as enum ('turtley','shelldon');
+create type entry_state_t   as enum ('completed','repaired','ai_rescued','shielded');
+create type photo_source_t  as enum ('camera','library','sample','ai');
+create type mood_t          as enum ('happy','sleepy','derpy','majestic','shy','hungry');
+create type ledger_reason_t as enum
+  ('upload','streak_bonus','milestone','note_bonus','meta_bonus','challenge',
+   'fact_read','fact_of_day','repair','ai_rescue','shield_buy','shop_purchase',
+   'onboarding_gift','minigame','mantra','task','daily_login',
+   'lucky_upload','lucky_game','lucky_mantra','booster','booster_open',
+   'booster_reward','refund','admin');
+create type shield_status_t as enum ('available','used');
+create type fact_category_t as enum ('biology','history','record','silly','care');
+create type rarity_t        as enum ('common','rare','legendary');
+create type shop_category_t as enum ('theme','sticker','frame','mascot_accessory','shield','recovery');
+
+-- ============================================================ core tables
+-- app_user.id == auth.users.id (1:1 with Supabase Auth)
+create table app_user (
+  id           uuid primary key references auth.users(id) on delete cascade,
+  display_name text not null default 'Pond Keeper',
+  timezone     text not null default 'UTC',
+  mascot       mascot_t not null default 'turtley',
+  mascot_name  text,
+  theme_id     text not null default 'pond_mint',
+  is_premium   boolean not null default false,
+  onboarded    boolean not null default false,
+  created_at   timestamptz not null default now()
+);
+
+create table wallet (
+  user_id         uuid primary key references app_user(id) on delete cascade,
+  balance         integer not null default 0 check (balance >= 0),
+  lifetime_earned integer not null default 0,
+  lifetime_spent  integer not null default 0
+);
+
+create table turtbux_ledger (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references app_user(id) on delete cascade,
+  delta           integer not null,
+  reason          ledger_reason_t not null,
+  ref_type        text,
+  ref_id          text,
+  balance_after   integer not null,
+  idempotency_key text,
+  created_at      timestamptz not null default now(),
+  unique (user_id, idempotency_key)        -- replay-safe money mutations
+);
+create index on turtbux_ledger (user_id, created_at desc);
+
+create table turtle_entry (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references app_user(id) on delete cascade,
+  entry_date     date not null,
+  state          entry_state_t not null,
+  photo_url      text,
+  photo_source   photo_source_t,
+  turtle_name    text,
+  mood           mood_t,
+  notes          text,
+  tags           text[] not null default '{}',
+  location_lat   double precision,
+  location_lng   double precision,
+  location_label text,
+  earned_turtbux integer not null default 0,
+  bonus_note     boolean not null default false,
+  bonus_meta     boolean not null default false,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  unique (user_id, entry_date)             -- at most one entry per day
+);
+create index on turtle_entry (user_id, entry_date);
+
+create table streak (
+  user_id             uuid primary key references app_user(id) on delete cascade,
+  current             integer not null default 0,
+  longest             integer not null default 0,
+  last_covered_date   date
+);
+
+create table shell_shield (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references app_user(id) on delete cascade,
+  status       shield_status_t not null default 'available',
+  acquired_at  timestamptz not null default now(),
+  used_on_date date
+);
+
+-- ============================================================ content catalogs (global)
+create table turtle_fact (
+  id text primary key,
+  title text not null,
+  body text not null,
+  category fact_category_t not null,
+  emoji text not null,
+  rarity rarity_t not null default 'common',
+  reward integer not null default 5
+);
+
+create table user_fact_read (
+  user_id uuid references app_user(id) on delete cascade,
+  fact_id text references turtle_fact(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (user_id, fact_id)
+);
+
+create table shop_item (
+  id text primary key,
+  category shop_category_t not null,
+  name text not null,
+  description text not null,
+  price integer not null check (price >= 0),
+  emoji text not null,
+  consumable boolean not null default false,
+  premium_only boolean not null default false,
+  theme jsonb
+);
+
+create table user_inventory (
+  user_id     uuid references app_user(id) on delete cascade,
+  item_id     text references shop_item(id) on delete cascade,
+  equipped    boolean not null default false,
+  acquired_at timestamptz not null default now(),
+  primary key (user_id, item_id)
+);
+
+create table achievement (
+  id text primary key,
+  title text not null,
+  description text not null,
+  emoji text not null
+);
+
+create table user_achievement (
+  user_id        uuid references app_user(id) on delete cascade,
+  achievement_id text references achievement(id) on delete cascade,
+  earned_at      timestamptz not null default now(),
+  primary key (user_id, achievement_id)
+);
+
+create table notification_settings (
+  user_id                uuid primary key references app_user(id) on delete cascade,
+  daily_reminder_enabled boolean not null default true,
+  reminder_time          text not null default '19:00',
+  streak_risk_enabled    boolean not null default true,
+  fact_of_day_enabled    boolean not null default false
+);
+
+-- ============================================================ triggers
+create or replace function set_updated_at() returns trigger
+  language plpgsql as $$
+begin new.updated_at = now(); return new; end $$;
+
+create trigger trg_entry_updated
+  before update on turtle_entry
+  for each row execute function set_updated_at();
+
+-- Provision a full profile when a new auth user signs up.
+create or replace function handle_new_user() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  insert into app_user (id, display_name) values (new.id, 'Pond Keeper')
+    on conflict (id) do nothing;
+  insert into wallet (user_id) values (new.id) on conflict do nothing;
+  insert into streak (user_id) values (new.id) on conflict do nothing;
+  insert into notification_settings (user_id) values (new.id) on conflict do nothing;
+  return new;
+end $$;
+
+create trigger trg_on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
+
+-- Recompute streak (current/longest/last_covered) from the full entry set.
+-- A day is "covered" by the existence of any entry. See docs/05.
+create or replace function recompute_streak(p_user uuid) returns void
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_today date := current_date;
+  v_cur   integer := 0;
+  v_long  integer := 0;
+  v_run   integer := 0;
+  v_prev  date;
+  v_cursor date;
+  v_last  date;
+  r record;
+begin
+  -- longest run
+  for r in select entry_date from turtle_entry where user_id = p_user order by entry_date loop
+    if v_prev is not null and r.entry_date = v_prev + 1 then v_run := v_run + 1;
+    else v_run := 1; end if;
+    if v_run > v_long then v_long := v_run; end if;
+    v_prev := r.entry_date;
+    v_last := r.entry_date;
+  end loop;
+
+  -- current run (with one-day grace: count from today, else yesterday)
+  if exists (select 1 from turtle_entry where user_id = p_user and entry_date = v_today) then
+    v_cursor := v_today;
+  elsif exists (select 1 from turtle_entry where user_id = p_user and entry_date = v_today - 1) then
+    v_cursor := v_today - 1;
+  else
+    v_cursor := null;
+  end if;
+
+  while v_cursor is not null
+        and exists (select 1 from turtle_entry where user_id = p_user and entry_date = v_cursor) loop
+    v_cur := v_cur + 1;
+    v_cursor := v_cursor - 1;
+  end loop;
+
+  v_long := greatest(v_long, v_cur);
+
+  update streak set current = v_cur, longest = greatest(longest, v_long), last_covered_date = v_last
+   where user_id = p_user;
+end $$;
+
+create or replace function trg_recompute_streak() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  perform recompute_streak(coalesce(new.user_id, old.user_id));
+  return null;
+end $$;
+
+create trigger trg_entry_streak
+  after insert or update or delete on turtle_entry
+  for each row execute function trg_recompute_streak();
+
+-- ============================================================ economy RPC (atomic + idempotent)
+-- Apply a balance delta and write the ledger row in one transaction.
+-- Negative deltas are rejected if they would drive balance below zero.
+create or replace function apply_turtbux(
+  p_delta integer, p_reason ledger_reason_t,
+  p_ref_type text default null, p_ref_id text default null,
+  p_idempotency text default null
+) returns integer
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid();
+  v_existing integer;
+  v_balance integer;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+
+  if p_idempotency is not null then
+    select balance_after into v_existing from turtbux_ledger
+     where user_id = v_user and idempotency_key = p_idempotency;
+    if found then return v_existing; end if;  -- replay: return prior result
+  end if;
+
+  update wallet set
+    balance = balance + p_delta,
+    lifetime_earned = lifetime_earned + greatest(p_delta, 0),
+    lifetime_spent  = lifetime_spent  + greatest(-p_delta, 0)
+   where user_id = v_user
+   returning balance into v_balance;
+
+  if v_balance is null then raise exception 'NO_WALLET'; end if;
+  if v_balance < 0 then raise exception 'INSUFFICIENT_FUNDS'; end if;
+
+  insert into turtbux_ledger (user_id, delta, reason, ref_type, ref_id, balance_after, idempotency_key)
+  values (v_user, p_delta, p_reason, p_ref_type, p_ref_id, v_balance, p_idempotency);
+
+  return v_balance;
+end $$;
+
+-- Atomic shop purchase: debit then grant inventory (or buy a shield).
+create or replace function purchase_shop_item(p_item_id text, p_idempotency text)
+  returns integer
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid();
+  v_item shop_item;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  select * into v_item from shop_item where id = p_item_id;
+  if not found then raise exception 'UNKNOWN_ITEM'; end if;
+
+  if v_item.category = 'shield' then
+    perform apply_turtbux(-v_item.price, 'shield_buy', 'shield', p_item_id, p_idempotency);
+    insert into shell_shield (user_id) values (v_user);
+  else
+    if exists (select 1 from user_inventory where user_id = v_user and item_id = p_item_id) then
+      raise exception 'ALREADY_OWNED';
+    end if;
+    perform apply_turtbux(-v_item.price, 'shop_purchase', 'shopItem', p_item_id, p_idempotency);
+    insert into user_inventory (user_id, item_id) values (v_user, p_item_id);
+  end if;
+  return (select balance from wallet where user_id = v_user);
+end $$;
+
+-- First read of a fact awards Turtbux exactly once.
+create or replace function read_fact(p_fact_id text) returns integer
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid();
+  v_reward integer;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  if exists (select 1 from user_fact_read where user_id = v_user and fact_id = p_fact_id) then
+    return 0;
+  end if;
+  select reward into v_reward from turtle_fact where id = p_fact_id;
+  if not found then raise exception 'UNKNOWN_FACT'; end if;
+  insert into user_fact_read (user_id, fact_id) values (v_user, p_fact_id);
+  perform apply_turtbux(v_reward, 'fact_read', 'fact', p_fact_id, 'fact_read:' || p_fact_id);
+  return v_reward;
+end $$;
+
+-- Consume an available shield to protect a missed day.
+create or replace function shield_day(p_date date) returns void
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid();
+  v_shield uuid;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  if exists (select 1 from turtle_entry where user_id = v_user and entry_date = p_date) then
+    raise exception 'ENTRY_EXISTS'; end if;
+  select id into v_shield from shell_shield
+   where user_id = v_user and status = 'available' order by acquired_at limit 1 for update;
+  if not found then raise exception 'NO_SHIELD_AVAILABLE'; end if;
+  update shell_shield set status = 'used', used_on_date = p_date where id = v_shield;
+  insert into turtle_entry (user_id, entry_date, state, tags)
+  values (v_user, p_date, 'shielded', array['shielded']);
+end $$;
+
+-- ============================================================ RLS
+alter table app_user             enable row level security;
+alter table wallet               enable row level security;
+alter table turtbux_ledger       enable row level security;
+alter table turtle_entry         enable row level security;
+alter table streak               enable row level security;
+alter table shell_shield         enable row level security;
+alter table user_fact_read       enable row level security;
+alter table user_inventory       enable row level security;
+alter table user_achievement     enable row level security;
+alter table notification_settings enable row level security;
+
+-- owner-only access for all per-user tables
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'app_user','wallet','turtbux_ledger','turtle_entry','streak','shell_shield',
+    'user_fact_read','user_inventory','user_achievement','notification_settings'
+  ] loop
+    execute format($f$
+      create policy "own_select" on %1$I for select using (%2$s = auth.uid());
+      create policy "own_insert" on %1$I for insert with check (%2$s = auth.uid());
+      create policy "own_update" on %1$I for update using (%2$s = auth.uid()) with check (%2$s = auth.uid());
+      create policy "own_delete" on %1$I for delete using (%2$s = auth.uid());
+    $f$, t, case when t = 'app_user' then 'id' else 'user_id' end);
+  end loop;
+end $$;
+
+-- catalogs are world-readable, never client-writable
+alter table turtle_fact enable row level security;
+alter table shop_item   enable row level security;
+alter table achievement enable row level security;
+create policy "facts_read"   on turtle_fact for select using (true);
+create policy "shop_read"    on shop_item   for select using (true);
+create policy "achv_read"    on achievement for select using (true);
+
+-- ====================== 0002_seed_catalog.sql ======================
+-- TurtWatch — seed global content catalogs (facts, shop items, achievements).
+-- Mirrors src/data/*.ts. Safe to re-run (upserts).
+
+-- ---------------- turtle facts ----------------
+insert into turtle_fact (id, title, body, category, emoji, rarity, reward) values
+  ('no-teeth','Toothless Wonders','Turtles have no teeth! They use a sharp, beak-like mouth to chomp their food.','biology','🦷','common',5),
+  ('breathe-butt','Bum Breathers','Some turtles can absorb oxygen through their rear end — cloacal respiration! Truly elite.','silly','🍑','rare',10),
+  ('shell-bones','Built-in Backpack','A turtle''s shell is fused to its spine and ribs — it can''t ever leave home without it.','biology','🎒','common',5),
+  ('ancient','Older Than Dinosaurs','Turtles have been around for over 200 million years, predating snakes and crocodiles.','history','🦕','rare',10),
+  ('oldest','Jonathan the Tortoise','Jonathan, a Seychelles tortoise, is ~190+ years old — possibly the oldest land animal alive.','record','🎂','legendary',25),
+  ('tears','Salty Criers','Sea turtles ''cry'' to flush out extra salt. Not sad — just very well hydrated.','biology','😢','common',5),
+  ('navigation','Magnetic Maps','Sea turtles sense Earth''s magnetic field to navigate thousands of miles back to their birth beach.','biology','🧭','rare',10),
+  ('temperature-sex','Warm = Girls','For many turtles, nest temperature decides the babies'' sex. Warmer sand → more females.','biology','🌡️','common',5),
+  ('fast-leatherback','Speedy Swimmer','Leatherback sea turtles can swim up to 35 km/h — faster than you''d ever guess.','record','💨','rare',10),
+  ('group-name','A Bale of Turtles','A group of turtles is called a ''bale.'' A bale of turtles. Say it again. Lovely.','silly','👯','common',5),
+  ('care-basking','Sunbathing Pros','Pet turtles need a basking spot with UVB light to stay healthy and build strong shells.','care','☀️','common',5),
+  ('care-clean','Clean Pond Club','Turtles are messy! A good filter keeps their water clear and their little selves happy.','care','🫧','common',5),
+  ('tiny-speck','Smallest Turtle','The speckled padloper tortoise fits in your palm at under 10 cm. Pocket-sized perfection.','record','🤏','rare',10),
+  ('biggest','Gentle Giant','Leatherbacks can weigh over 900 kg — a turtle the size of a small car.','record','🚗','legendary',25),
+  ('hibernate','Pond Naps','Some turtles brumate (reptile hibernation) underwater all winter. The original cozy nappers.','biology','😴','common',5),
+  ('shell-feel','Shells Can Feel','A shell isn''t armor-armor — it has nerve endings. Turtles can feel a gentle scratch.','biology','🫶','common',5)
+on conflict (id) do update set
+  title = excluded.title, body = excluded.body, category = excluded.category,
+  emoji = excluded.emoji, rarity = excluded.rarity, reward = excluded.reward;
+
+-- ---------------- shop items ----------------
+insert into shop_item (id, category, name, description, price, emoji, consumable, theme) values
+  ('buy_shield','shield','Shell Shield','Protects one missed day so your streak survives. Stock up!',80,'🛡️',true,null),
+  ('shield_pack_3','shield','Shield Pack ×3','Three Shell Shields at once — stock up for a long trip.',210,'🛡️',true,null),
+  ('frame_lilypad','frame','Lily Pad Frame','Frame your daily turtle on a floating lily pad.',120,'🪷',false,null),
+  ('frame_bubbles','frame','Bubble Frame','Surround your turtle with happy little bubbles.',120,'🫧',false,null),
+  ('frame_gold','frame','Golden Shell Frame','For your most majestic turtles only.',220,'🥇',false,null),
+  ('sticker_pond','sticker','Pond Pals Pack','Frogs, ducks & dragonflies to decorate entries.',100,'🐸',false,null),
+  ('sticker_party','sticker','Party Pack','Confetti, balloons & party hats. Wholesome chaos.',100,'🎉',false,null),
+  ('acc_party_hat','mascot_accessory','Party Hat','A tiny party hat for your mascot.',90,'🎩',false,null),
+  ('acc_sunnies','mascot_accessory','Cool Sunnies','Sunglasses. Your mascot is now extremely cool.',120,'🕶️',false,null),
+  ('acc_crown','mascot_accessory','Royal Crown','Crown your mascot the ruler of the pond.',250,'👑',false,null),
+  ('frame_starlight','frame','Starlight Frame','A dreamy sparkle border for cosmic turtles.',200,'✨',false,null),
+  ('frame_rainbow','frame','Rainbow Frame','A soft rainbow halo around your turtle.',200,'🌈',false,null),
+  ('sticker_food','sticker','Snack Pack','Strawberries, lettuce & little cakes for hungry turtles.',100,'🍓',false,null),
+  ('acc_bow','mascot_accessory','Cute Bow','An adorable bow for a dapper turtle.',90,'🎀',false,null),
+  ('acc_flower','mascot_accessory','Flower Crown','A springtime flower for your mascot''s head.',110,'🌷',false,null),
+  ('acc_scarf','mascot_accessory','Cozy Scarf','Keep your turtle snug and stylish.',140,'🧣',false,null),
+  ('theme_seafoam','theme','Seafoam','A cozy new pond palette for the whole app.',310,'🎨',false,
+    '{"id":"seafoam","name":"Seafoam","bg":"#e6fbf6","surface":"#ffffff","primary":"#8fe0d2","primaryDeep":"#2f8a78","accent":"#ffd0a5","text":"#244f49"}'),
+  ('theme_bubblegum','theme','Bubblegum Pond','A cozy new pond palette for the whole app.',150,'🎨',false,
+    '{"id":"bubblegum","name":"Bubblegum Pond","bg":"#fdeef4","surface":"#ffffff","primary":"#f7a8c4","primaryDeep":"#c14d77","accent":"#bfe3ff","text":"#5b3346"}'),
+  ('theme_lilac_lagoon','theme','Lilac Lagoon','A cozy new pond palette for the whole app.',190,'🎨',false,
+    '{"id":"lilac_lagoon","name":"Lilac Lagoon","bg":"#f1ecfb","surface":"#ffffff","primary":"#c3b3f0","primaryDeep":"#6f57bd","accent":"#ffe1a8","text":"#423a5e"}'),
+  ('theme_sunny_sand','theme','Sunny Sandbar','A cozy new pond palette for the whole app.',230,'🎨',false,
+    '{"id":"sunny_sand","name":"Sunny Sandbar","bg":"#fff6e6","surface":"#ffffff","primary":"#ffcf73","primaryDeep":"#b3760f","accent":"#9fdcc0","text":"#5a4422"}'),
+  ('theme_deep_sea','theme','Deep Blue','A cozy new pond palette for the whole app.',270,'🎨',false,
+    '{"id":"deep_sea","name":"Deep Blue","bg":"#e8f1fb","surface":"#ffffff","primary":"#8fbdf0","primaryDeep":"#2f66b8","accent":"#ffc4d6","text":"#2d4360"}')
+on conflict (id) do update set
+  category = excluded.category, name = excluded.name, description = excluded.description,
+  price = excluded.price, emoji = excluded.emoji, consumable = excluded.consumable, theme = excluded.theme;
+
+-- ---------------- achievements ----------------
+insert into achievement (id, title, description, emoji) values
+  ('first_turtle','First Turtle!','Upload your very first turtle.','🐢'),
+  ('streak_7','Week of Turtles','Reach a 7-day streak.','📅'),
+  ('streak_30','Turtle Devotee','Reach a 30-day streak.','🏆'),
+  ('streak_100','Pond Legend','Reach a 100-day streak.','💯'),
+  ('first_repair','Handy Helper','Repair a missed day.','🩹'),
+  ('first_shield','Shell Guardian','Use a Shell Shield.','🛡️'),
+  ('first_rescue','AI Whisperer','Use AI Turtle Rescue.','✨'),
+  ('facts_5','Curious Turtle','Read 5 turtle facts.','📖'),
+  ('facts_all','Turtle Scholar','Read every turtle fact.','🎓'),
+  ('shopper','Pond Shopper','Buy your first shop item.','🛍️'),
+  ('rich','Turtbux Tycoon','Earn 500 Turtbux in total.','🪙'),
+  ('decorator','Cozy Decorator','Equip a theme, frame, and accessory.','🎨')
+on conflict (id) do update set
+  title = excluded.title, description = excluded.description, emoji = excluded.emoji;
+
+-- ====================== 0003_user_state.sql ======================
+-- TurtWatch — per-user cloud snapshot for account-based backup/sync.
+-- The app serializes its whole state into one JSONB row (photos are offloaded to
+-- Storage and referenced by URL). Owner-only via RLS.
+
+create table if not exists user_state (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  state      jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table user_state enable row level security;
+
+create policy "own_state_select" on user_state for select using (user_id = auth.uid());
+create policy "own_state_insert" on user_state for insert with check (user_id = auth.uid());
+create policy "own_state_update" on user_state for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "own_state_delete" on user_state for delete using (user_id = auth.uid());
+
+-- ====================== 0004_push.sql ======================
+-- Web Push subscriptions for reminders & good mornings.
+
+create table if not exists push_subscriptions (
+  endpoint     text primary key,
+  user_id      uuid references auth.users(id) on delete cascade,
+  subscription jsonb not null,
+  last_sent    jsonb not null default '{}'::jsonb, -- { morning:'YYYY-MM-DD', reminder:'YYYY-MM-DD' } dedup
+  updated_at   timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user on push_subscriptions (user_id);
+
+alter table push_subscriptions enable row level security;
+create policy "own_push_select" on push_subscriptions for select using (user_id = auth.uid());
+create policy "own_push_insert" on push_subscriptions for insert with check (user_id = auth.uid());
+create policy "own_push_update" on push_subscriptions for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "own_push_delete" on push_subscriptions for delete using (user_id = auth.uid());
+-- The send-reminders Edge Function reads these with the service role (bypasses RLS).
+
+-- ====================== 0005_server_economy.sql ======================
+-- TurtWatch — FULL server-authoritative economy.
+-- Every Turtbux mutation is recomputed and validated server-side here, so a
+-- tampered client can never mint currency. Constants mirror src/logic/*.
+-- All functions are SECURITY DEFINER and key off auth.uid().
+
+-- ---------- per-user economy state (daily caps, journey, login flags) ----------
+alter table app_user add column if not exists login_bonus_on date;
+alter table app_user add column if not exists fact_of_day_on date;
+alter table app_user add column if not exists last_booster_on date;
+alter table app_user add column if not exists game_date date;
+alter table app_user add column if not exists game_earned integer not null default 0;
+alter table app_user add column if not exists mantra_date date;
+alter table app_user add column if not exists mantra_earned integer not null default 0;
+alter table app_user add column if not exists trek_steps integer not null default 0;
+alter table app_user add column if not exists trek_streak integer not null default 0;
+alter table app_user add column if not exists trek_longest integer not null default 0;
+alter table app_user add column if not exists trek_last_date date;
+alter table app_user add column if not exists task_date date;
+alter table app_user add column if not exists task_earned integer not null default 0;
+alter table app_user add column if not exists task_steps_today integer not null default 0;
+
+create table if not exists task_item (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references app_user(id) on delete cascade,
+  title       text not null,
+  done        boolean not null default false,
+  last_done   date,
+  created_at  timestamptz not null default now()
+);
+create index if not exists task_item_user on task_item (user_id);
+alter table task_item enable row level security;
+create policy "own_task_all" on task_item for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- card catalog (seeded by 0006). rarity is TEXT to avoid extending the rarity_t
+-- enum (which lacks 'epic') inside a transaction.
+create table if not exists fact_card (
+  id     text primary key,
+  text   text not null,
+  rarity text not null,
+  emoji  text not null
+);
+alter table fact_card enable row level security;
+create policy "cards_read" on fact_card for select using (true);
+
+create table if not exists user_card (
+  user_id uuid references app_user(id) on delete cascade,
+  card_id text references fact_card(id) on delete cascade,
+  copies  integer not null default 1,
+  primary key (user_id, card_id)
+);
+alter table user_card enable row level security;
+-- read-only to clients; collection grows only via SECURITY DEFINER functions
+create policy "own_card_select" on user_card for select using (user_id = auth.uid());
+
+-- ---------- helpers ----------
+create or replace function milestone_bonus(p_streak integer) returns integer language sql immutable as $$
+  select case p_streak when 7 then 25 when 30 then 100 when 100 then 300 when 180 then 500 when 365 then 750 else 0 end;
+$$;
+
+-- ---------- uploads ----------
+create or replace function srv_upload(
+  p_date date, p_photo text, p_name text, p_mood mood_t,
+  p_notes text, p_tags text[], p_loc text
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid();
+  v_streak int; v_reward int; v_note bool; v_meta bool; v_golden int := 0; v_balance int; v_entry uuid;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  if exists (select 1 from turtle_entry where user_id = v_user and entry_date = p_date) then raise exception 'ENTRY_EXISTS'; end if;
+  v_note := coalesce(length(btrim(p_notes)), 0) >= 10;
+  v_meta := p_mood is not null and coalesce(array_length(p_tags, 1), 0) > 0;
+
+  -- the AFTER INSERT trigger recomputes the streak; then read it for the reward
+  insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, turtle_name, mood, notes, tags, location_label, bonus_note, bonus_meta)
+  values (v_user, p_date, 'completed', p_photo, 'library', p_name, p_mood, p_notes, coalesce(p_tags, '{}'), p_loc, v_note, v_meta)
+  returning id into v_entry;
+
+  select current into v_streak from streak where user_id = v_user;
+
+  v_reward := 10 + least(v_streak, 30) + milestone_bonus(v_streak)
+              + (case when v_note then 3 else 0 end) + (case when v_meta then 2 else 0 end);
+  if random() < 0.08 then v_golden := 15; v_reward := v_reward + 15; end if;
+
+  update turtle_entry set earned_turtbux = v_reward where id = v_entry;
+  -- no idempotency key: the UNIQUE(user_id,entry_date) guard already prevents
+  -- double-credit, and a fresh re-upload after a delete must credit again
+  v_balance := apply_turtbux(v_reward, 'upload', 'entry', p_date::text);
+  return jsonb_build_object('balance', v_balance, 'earned', v_reward, 'streak', v_streak, 'golden', v_golden);
+end $$;
+
+-- ---------- recovery ----------
+create or replace function srv_repair(p_date date, p_photo text) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_balance int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  if exists (select 1 from turtle_entry where user_id = v_user and entry_date = p_date) then raise exception 'ENTRY_EXISTS'; end if;
+  v_balance := apply_turtbux(-30, 'repair', 'entry', p_date::text, 'repair:' || p_date::text);
+  insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, tags)
+  values (v_user, p_date, 'repaired', p_photo, 'library', array['backfilled']);
+  return jsonb_build_object('balance', v_balance);
+end $$;
+
+create or replace function srv_ai_rescue(p_date date, p_photo text) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_balance int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  if exists (select 1 from turtle_entry where user_id = v_user and entry_date = p_date) then raise exception 'ENTRY_EXISTS'; end if;
+  v_balance := apply_turtbux(-60, 'ai_rescue', 'entry', p_date::text, 'ai_rescue:' || p_date::text);
+  insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, turtle_name, tags)
+  values (v_user, p_date, 'ai_rescued', p_photo, 'ai', 'Mystery AI Turtle', array['ai-rescued']);
+  return jsonb_build_object('balance', v_balance);
+end $$;
+
+-- ---------- daily bonuses ----------
+create or replace function srv_login_bonus(p_date date) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_streak int; v_tier int := 0; v_total int; v_balance int; v_today date; v_rows int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  -- derive "today" server-side from the user's timezone; ignore client date (anti future-claim)
+  v_today := (now() at time zone coalesce((select timezone from app_user where id = v_user), 'UTC'))::date;
+  -- atomic check-and-set: only one caller can flip the date
+  update app_user set login_bonus_on = v_today where id = v_user and login_bonus_on is distinct from v_today;
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then return jsonb_build_object('awarded', 0); end if;
+  select current into v_streak from streak where user_id = v_user;
+  v_tier := case
+    when v_streak >= 365 then 75 when v_streak >= 180 then 50 when v_streak >= 100 then 30
+    when v_streak >= 60 then 25 when v_streak >= 30 then 25 when v_streak >= 14 then 10 when v_streak >= 7 then 10 else 0 end;
+  v_total := 5 + v_tier;
+  v_balance := apply_turtbux(v_total, 'daily_login', null, null, 'login:' || v_today::text);
+  return jsonb_build_object('awarded', v_total, 'balance', v_balance);
+end $$;
+
+create or replace function srv_fact_of_day(p_date date) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_balance int; v_today date; v_rows int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  v_today := (now() at time zone coalesce((select timezone from app_user where id = v_user), 'UTC'))::date;
+  update app_user set fact_of_day_on = v_today where id = v_user and fact_of_day_on is distinct from v_today;
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then return jsonb_build_object('awarded', 0); end if;
+  v_balance := apply_turtbux(5, 'fact_of_day', null, null, 'fod:' || v_today::text);
+  return jsonb_build_object('awarded', 5, 'balance', v_balance);
+end $$;
+
+-- ---------- capped side-games (server enforces the daily cap & amount) ----------
+create or replace function srv_minigame(p_date date, p_amount integer) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_earned int; v_award int; v_balance int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  -- lock the row so concurrent calls can't both see an empty daily total
+  select case when game_date = p_date then game_earned else 0 end into v_earned from app_user where id = v_user for update;
+  v_award := greatest(0, least(coalesce(p_amount, 0), 20 - v_earned)); -- cap 20/day; ignore inflated client amounts
+  if v_award > 0 then v_balance := apply_turtbux(v_award, 'minigame', 'flipgame', null, null); end if;
+  update app_user set game_date = p_date, game_earned = v_earned + v_award where id = v_user;
+  return jsonb_build_object('awarded', v_award, 'balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
+end $$;
+
+create or replace function srv_mantra(p_date date, p_amount integer) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_earned int; v_award int; v_balance int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  select case when mantra_date = p_date then mantra_earned else 0 end into v_earned from app_user where id = v_user for update;
+  v_award := greatest(0, least(coalesce(p_amount, 0), 20 - v_earned));
+  if v_award > 0 then v_balance := apply_turtbux(v_award, 'mantra', 'mantra', null, null); end if;
+  update app_user set mantra_date = p_date, mantra_earned = v_earned + v_award where id = v_user;
+  return jsonb_build_object('awarded', v_award, 'balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
+end $$;
+
+-- ---------- trek tasks ----------
+create or replace function srv_toggle_task(p_id uuid, p_date date) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid(); v_task task_item; v_steps int; v_taskEarned int; v_pay int := 0; v_leg int := 0;
+  v_oldSteps int; v_newSteps int; v_arrived bool := false; v_streak int; v_last date; v_balance int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  select * into v_task from task_item where id = p_id and user_id = v_user;
+  if not found then raise exception 'NO_TASK'; end if;
+
+  if v_task.done then
+    update task_item set done = false where id = p_id;
+    return jsonb_build_object('rewarded', 0, 'stepped', false);
+  end if;
+
+  -- first payout for this task today?
+  if v_task.last_done is distinct from p_date then
+    select trek_steps, trek_last_date, trek_streak,
+           case when task_date = p_date then task_earned else 0 end,
+           case when task_date = p_date then task_steps_today else 0 end
+      into v_oldSteps, v_last, v_streak, v_taskEarned, v_steps
+      from app_user where id = v_user;
+
+    if v_steps >= 12 then  -- daily step cap (anti-farm)
+      update task_item set done = true, last_done = p_date where id = p_id;
+      return jsonb_build_object('rewarded', 0, 'stepped', false);
+    end if;
+
+    v_newSteps := v_oldSteps + 1;
+    v_arrived := floor(v_newSteps / 8.0) > floor(v_oldSteps / 8.0);
+    v_pay := greatest(0, least(4, 24 - v_taskEarned));
+    if v_arrived then v_leg := 20; end if;
+
+    -- streak (per day)
+    if v_last is distinct from p_date then
+      v_streak := case when v_last = p_date - 1 then v_streak + 1 else 1 end;
+    end if;
+
+    update task_item set done = true, last_done = p_date where id = p_id;
+    update app_user set
+      trek_steps = v_newSteps,
+      trek_last_date = p_date,
+      trek_streak = v_streak,
+      trek_longest = greatest(trek_longest, v_streak),
+      task_date = p_date,
+      task_earned = v_taskEarned + v_pay,
+      task_steps_today = v_steps + 1
+      where id = v_user;
+
+    if (v_pay + v_leg) > 0 then v_balance := apply_turtbux(v_pay + v_leg, 'task', 'quest', null, null); end if;
+    return jsonb_build_object('rewarded', v_pay + v_leg, 'stepped', true, 'arrived', v_arrived, 'steps', v_newSteps,
+                              'streak', v_streak, 'balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
+  end if;
+
+  update task_item set done = true where id = p_id;
+  return jsonb_build_object('rewarded', 0, 'stepped', false);
+end $$;
+
+-- ---------- booster packs ----------
+create or replace function srv_open_booster(p_paid boolean, p_date date) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid(); v_balance int; v_results jsonb := '[]'::jsonb; v_total int := 0;
+  v_roll numeric; v_rarity text; v_card record; v_isNew bool; v_reward int; v_today date; v_rows int; i int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  v_today := (now() at time zone coalesce((select timezone from app_user where id = v_user), 'UTC'))::date;
+  if p_paid then
+    v_balance := apply_turtbux(-60, 'booster_open', 'booster', null, null);
+  else
+    -- atomic free-once-per-day: only one concurrent caller flips the date
+    update app_user set last_booster_on = v_today where id = v_user and last_booster_on is distinct from v_today;
+    get diagnostics v_rows = row_count;
+    if v_rows = 0 then raise exception 'NO_FREE_BOOSTER'; end if;
+  end if;
+
+  for i in 1..3 loop
+    v_roll := random() * 100;
+    v_rarity := case when v_roll < 60 then 'common' when v_roll < 85 then 'rare' when v_roll < 97 then 'epic' else 'legendary' end;
+    select * into v_card from fact_card where rarity = v_rarity order by random() limit 1;
+    if not found then select * into v_card from fact_card order by random() limit 1; end if;
+
+    -- atomic new-vs-dupe: xmax=0 means this row was freshly INSERTed (not updated)
+    insert into user_card (user_id, card_id, copies) values (v_user, v_card.id, 1)
+      on conflict (user_id, card_id) do update set copies = user_card.copies + 1
+      returning (xmax = 0) into v_isNew;
+
+    v_reward := case when v_isNew then (case v_card.rarity when 'common' then 3 when 'rare' then 8 when 'epic' then 16 else 35 end) else 1 end;
+    v_total := v_total + v_reward;
+    v_results := v_results || jsonb_build_object('id', v_card.id, 'isNew', v_isNew);
+  end loop;
+
+  if v_total > 0 then v_balance := apply_turtbux(v_total, 'booster_reward', 'booster', null, null); end if;
+  return jsonb_build_object('cards', v_results, 'rewarded', v_total,
+                            'balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
+end $$;
+
+-- ---------- one-time migrate-local-up (first sign-in) ----------
+-- Imports an on-device AppState JSON, but only if the account has no entries yet.
+create or replace function srv_import_state(p_state jsonb) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); rec record; v_bal int; v_shields int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  if exists (select 1 from turtle_entry where user_id = v_user) then return jsonb_build_object('skipped', true); end if;
+
+  for rec in select * from jsonb_each(p_state->'entries') loop
+    insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, turtle_name, mood, notes, tags, location_label, earned_turtbux, bonus_note, bonus_meta)
+    values (
+      v_user, (rec.key)::date, (rec.value->>'state')::entry_state_t,
+      rec.value->>'photoUrl', nullif(rec.value->>'photoSource','')::photo_source_t,
+      rec.value->>'turtleName', nullif(rec.value->>'mood','')::mood_t, rec.value->>'notes',
+      coalesce((select array_agg(x) from jsonb_array_elements_text(rec.value->'tags') x), '{}'),
+      rec.value->'location'->>'label', coalesce((rec.value->>'earnedTurtbux')::int, 0),
+      coalesce((rec.value->'bonuses'->>'note')::boolean, false), coalesce((rec.value->'bonuses'->>'meta')::boolean, false)
+    ) on conflict (user_id, entry_date) do nothing;
+  end loop;
+  perform recompute_streak(v_user);
+
+  -- import the on-device balance, but hard-cap it so a tampered first-login JSON
+  -- can't mint an arbitrary amount
+  v_bal := least(greatest(coalesce((p_state->'wallet'->>'balance')::int, 0), 0), 5000);
+  if v_bal > 0 then perform apply_turtbux(v_bal, 'admin', 'import', null, 'import:' || v_user::text); end if;
+
+  for rec in select * from jsonb_each(p_state->'inventory') loop
+    insert into user_inventory (user_id, item_id, equipped)
+    values (v_user, rec.key, coalesce((rec.value->>'equipped')::boolean, false)) on conflict do nothing;
+  end loop;
+
+  for rec in select * from jsonb_each(coalesce(p_state->'collection', '{}'::jsonb)) loop
+    insert into user_card (user_id, card_id, copies)
+    values (v_user, rec.key, greatest(1, (rec.value)::int))
+    on conflict (user_id, card_id) do nothing;
+  end loop;
+
+  v_shields := coalesce(jsonb_array_length(p_state->'shields'), 0);
+  for i in 1..v_shields loop
+    if (p_state->'shields'->(i-1)->>'status') = 'available' then
+      insert into shell_shield (user_id) values (v_user);
+    end if;
+  end loop;
+
+  update app_user set
+    trek_steps = coalesce((p_state->'quest'->>'steps')::int, 0),
+    trek_streak = coalesce((p_state->'quest'->>'streakCurrent')::int, 0),
+    trek_longest = coalesce((p_state->'quest'->>'streakLongest')::int, 0)
+  where id = v_user;
+
+  return jsonb_build_object('imported', true);
+end $$;
+
+-- ---------- privilege lockdown ----------
+-- The raw ledger primitive must NOT be client-callable, or anyone could mint
+-- Turtbux via /rpc/apply_turtbux. Only the SECURITY DEFINER srv_* wrappers
+-- (which run as the owner) may call it.
+revoke execute on function apply_turtbux(integer, ledger_reason_t, text, text, text) from public, authenticated, anon;
+revoke execute on function recompute_streak(uuid) from public, authenticated, anon;
+
+-- Clients call only the validated, server-authoritative surface.
+grant execute on function
+  srv_upload(date, text, text, mood_t, text, text[], text),
+  srv_repair(date, text), srv_ai_rescue(date, text),
+  srv_login_bonus(date), srv_fact_of_day(date),
+  srv_minigame(date, integer), srv_mantra(date, integer),
+  srv_toggle_task(uuid, date), srv_open_booster(boolean, date),
+  srv_import_state(jsonb),
+  read_fact(text), purchase_shop_item(text, text), shield_day(date)
+  to authenticated;
+
+-- ====================== 0006_fact_cards_seed.sql ======================
+-- AUTO-GENERATED by scripts/gen-fact-cards.mjs — do not edit by hand.
+-- Mirrors src/data/factCards.ts so boosters roll & reward server-side.
+-- (The fact_card table is created in 0005_server_economy.sql; this file seeds it.)
+insert into fact_card (id, text, rarity, emoji) values
+  ('g1-0-0','Sir Shellington the turtle can hold its breath for a whole afternoon.','epic','🫧'),
+  ('g1-0-1','Sir Shellington the turtle can nap on a lily pad without floating away.','epic','⭐'),
+  ('g1-0-2','Sir Shellington the turtle can sense a rainstorm an hour early.','epic','🌸'),
+  ('g1-0-3','Sir Shellington the turtle can find its way home across an entire ocean.','epic','🌊'),
+  ('g1-0-4','Sir Shellington the turtle can out-shine any sunbeam it sits in.','epic','🐠'),
+  ('g1-0-5','Sir Shellington the turtle can win a staring contest with a frog.','epic','🍃'),
+  ('g1-0-6','Sir Shellington the turtle can balance a pebble on its nose.','epic','🌻'),
+  ('g1-0-7','Sir Shellington the turtle can snooze through an entire thunderstorm.','epic','🪨'),
+  ('g1-0-8','Sir Shellington the turtle can recognise its favourite human''s footsteps.','epic','🌅'),
+  ('g1-0-9','Sir Shellington the turtle can munch a strawberry in record-slow time.','rare','🐚'),
+  ('g1-0-10','Sir Shellington the turtle can doze with both eyes half-closed.','rare','🐚'),
+  ('g1-0-11','Sir Shellington the turtle can hum a tune that calms the whole pond.','epic','🌈'),
+  ('g1-1-0','Lady Paddlesworth the turtle can hold its breath for a whole afternoon.','common','⭐'),
+  ('g1-1-1','Lady Paddlesworth the turtle can nap on a lily pad without floating away.','common','🌸'),
+  ('g1-1-2','Lady Paddlesworth the turtle can sense a rainstorm an hour early.','common','🌊'),
+  ('g1-1-3','Lady Paddlesworth the turtle can find its way home across an entire ocean.','common','🐠'),
+  ('g1-1-4','Lady Paddlesworth the turtle can out-shine any sunbeam it sits in.','common','🍃'),
+  ('g1-1-5','Lady Paddlesworth the turtle can win a staring contest with a frog.','common','🌻'),
+  ('g1-1-6','Lady Paddlesworth the turtle can balance a pebble on its nose.','common','🪨'),
+  ('g1-1-7','Lady Paddlesworth the turtle can snooze through an entire thunderstorm.','common','🌅'),
+  ('g1-1-8','Lady Paddlesworth the turtle can recognise its favourite human''s footsteps.','common','🐚'),
+  ('g1-1-9','Lady Paddlesworth the turtle can munch a strawberry in record-slow time.','common','🌈'),
+  ('g1-1-10','Lady Paddlesworth the turtle can doze with both eyes half-closed.','rare','🌅'),
+  ('g1-1-11','Lady Paddlesworth the turtle can hum a tune that calms the whole pond.','rare','🐚'),
+  ('g1-2-0','Captain Mossback the turtle can hold its breath for a whole afternoon.','rare','🌸'),
+  ('g1-2-1','Captain Mossback the turtle can nap on a lily pad without floating away.','rare','🌊'),
+  ('g1-2-2','Captain Mossback the turtle can sense a rainstorm an hour early.','rare','🐠'),
+  ('g1-2-3','Captain Mossback the turtle can find its way home across an entire ocean.','rare','🍃'),
+  ('g1-2-4','Captain Mossback the turtle can out-shine any sunbeam it sits in.','rare','🌻'),
+  ('g1-2-5','Captain Mossback the turtle can win a staring contest with a frog.','rare','🪨'),
+  ('g1-2-6','Captain Mossback the turtle can balance a pebble on its nose.','rare','🌅'),
+  ('g1-2-7','Captain Mossback the turtle can snooze through an entire thunderstorm.','rare','🐚'),
+  ('g1-2-8','Captain Mossback the turtle can recognise its favourite human''s footsteps.','rare','🌈'),
+  ('g1-2-9','Captain Mossback the turtle can munch a strawberry in record-slow time.','rare','☀️'),
+  ('g1-2-10','Captain Mossback the turtle can doze with both eyes half-closed.','rare','🪨'),
+  ('g1-2-11','Captain Mossback the turtle can hum a tune that calms the whole pond.','rare','🌅'),
+  ('g1-3-0','Pebbles the turtle can hold its breath for a whole afternoon.','common','🌊'),
+  ('g1-3-1','Pebbles the turtle can nap on a lily pad without floating away.','common','🐠'),
+  ('g1-3-2','Pebbles the turtle can sense a rainstorm an hour early.','common','🍃'),
+  ('g1-3-3','Pebbles the turtle can find its way home across an entire ocean.','common','🌻'),
+  ('g1-3-4','Pebbles the turtle can out-shine any sunbeam it sits in.','common','🪨'),
+  ('g1-3-5','Pebbles the turtle can win a staring contest with a frog.','common','🌅'),
+  ('g1-3-6','Pebbles the turtle can balance a pebble on its nose.','common','🐚'),
+  ('g1-3-7','Pebbles the turtle can snooze through an entire thunderstorm.','common','🌈'),
+  ('g1-3-8','Pebbles the turtle can recognise its favourite human''s footsteps.','common','☀️'),
+  ('g1-3-9','Pebbles the turtle can munch a strawberry in record-slow time.','common','💧'),
+  ('g1-3-10','Pebbles the turtle can doze with both eyes half-closed.','common','🌻'),
+  ('g1-3-11','Pebbles the turtle can hum a tune that calms the whole pond.','common','🪨'),
+  ('g1-4-0','Duchess Lagoona the turtle can hold its breath for a whole afternoon.','common','🐠'),
+  ('g1-4-1','Duchess Lagoona the turtle can nap on a lily pad without floating away.','common','🍃'),
+  ('g1-4-2','Duchess Lagoona the turtle can sense a rainstorm an hour early.','common','🌻'),
+  ('g1-4-3','Duchess Lagoona the turtle can find its way home across an entire ocean.','common','🪨'),
+  ('g1-4-4','Duchess Lagoona the turtle can out-shine any sunbeam it sits in.','common','🌅'),
+  ('g1-4-5','Duchess Lagoona the turtle can win a staring contest with a frog.','common','🐚'),
+  ('g1-4-6','Duchess Lagoona the turtle can balance a pebble on its nose.','common','🌈'),
+  ('g1-4-7','Duchess Lagoona the turtle can snooze through an entire thunderstorm.','common','☀️'),
+  ('g1-4-8','Duchess Lagoona the turtle can recognise its favourite human''s footsteps.','common','💧'),
+  ('g1-4-9','Duchess Lagoona the turtle can munch a strawberry in record-slow time.','common','🐢'),
+  ('g1-4-10','Duchess Lagoona the turtle can doze with both eyes half-closed.','common','🍃'),
+  ('g1-4-11','Duchess Lagoona the turtle can hum a tune that calms the whole pond.','common','🌻'),
+  ('g1-5-0','Baron von Flipper the turtle can hold its breath for a whole afternoon.','epic','🍃'),
+  ('g1-5-1','Baron von Flipper the turtle can nap on a lily pad without floating away.','epic','🌻'),
+  ('g1-5-2','Baron von Flipper the turtle can sense a rainstorm an hour early.','epic','🪨'),
+  ('g1-5-3','Baron von Flipper the turtle can find its way home across an entire ocean.','epic','🌅'),
+  ('g1-5-4','Baron von Flipper the turtle can out-shine any sunbeam it sits in.','rare','🐚'),
+  ('g1-5-5','Baron von Flipper the turtle can win a staring contest with a frog.','rare','🌈'),
+  ('g1-5-6','Baron von Flipper the turtle can balance a pebble on its nose.','rare','☀️'),
+  ('g1-5-7','Baron von Flipper the turtle can snooze through an entire thunderstorm.','rare','💧'),
+  ('g1-5-8','Baron von Flipper the turtle can recognise its favourite human''s footsteps.','rare','🐢'),
+  ('g1-5-9','Baron von Flipper the turtle can munch a strawberry in record-slow time.','rare','🪷'),
+  ('g1-5-10','Baron von Flipper the turtle can doze with both eyes half-closed.','common','🐠'),
+  ('g1-5-11','Baron von Flipper the turtle can hum a tune that calms the whole pond.','common','🍃'),
+  ('g1-6-0','Tortellini the turtle can hold its breath for a whole afternoon.','common','🌻'),
+  ('g1-6-1','Tortellini the turtle can nap on a lily pad without floating away.','common','🪨'),
+  ('g1-6-2','Tortellini the turtle can sense a rainstorm an hour early.','common','🌅'),
+  ('g1-6-3','Tortellini the turtle can find its way home across an entire ocean.','common','🐚'),
+  ('g1-6-4','Tortellini the turtle can out-shine any sunbeam it sits in.','common','🌈'),
+  ('g1-6-5','Tortellini the turtle can win a staring contest with a frog.','common','☀️'),
+  ('g1-6-6','Tortellini the turtle can balance a pebble on its nose.','common','💧'),
+  ('g1-6-7','Tortellini the turtle can snooze through an entire thunderstorm.','common','🐢'),
+  ('g1-6-8','Tortellini the turtle can recognise its favourite human''s footsteps.','common','🪷'),
+  ('g1-6-9','Tortellini the turtle can munch a strawberry in record-slow time.','common','🌿'),
+  ('g1-6-10','Tortellini the turtle can doze with both eyes half-closed.','common','🌊'),
+  ('g1-6-11','Tortellini the turtle can hum a tune that calms the whole pond.','common','🐠'),
+  ('g1-7-0','Sunny the turtle can hold its breath for a whole afternoon.','rare','🪨'),
+  ('g1-7-1','Sunny the turtle can nap on a lily pad without floating away.','rare','🌅'),
+  ('g1-7-2','Sunny the turtle can sense a rainstorm an hour early.','rare','🐚'),
+  ('g1-7-3','Sunny the turtle can find its way home across an entire ocean.','rare','🌈'),
+  ('g1-7-4','Sunny the turtle can out-shine any sunbeam it sits in.','rare','☀️'),
+  ('g1-7-5','Sunny the turtle can win a staring contest with a frog.','rare','💧'),
+  ('g1-7-6','Sunny the turtle can balance a pebble on its nose.','rare','🐢'),
+  ('g1-7-7','Sunny the turtle can snooze through an entire thunderstorm.','common','🪷'),
+  ('g1-7-8','Sunny the turtle can recognise its favourite human''s footsteps.','common','🌿'),
+  ('g1-7-9','Sunny the turtle can munch a strawberry in record-slow time.','common','🫧'),
+  ('g1-7-10','Sunny the turtle can doze with both eyes half-closed.','common','🌸'),
+  ('g1-7-11','Sunny the turtle can hum a tune that calms the whole pond.','common','🌊'),
+  ('g1-8-0','Professor Snap the turtle can hold its breath for a whole afternoon.','common','🌅'),
+  ('g1-8-1','Professor Snap the turtle can nap on a lily pad without floating away.','common','🐚'),
+  ('g1-8-2','Professor Snap the turtle can sense a rainstorm an hour early.','common','🌈'),
+  ('g1-8-3','Professor Snap the turtle can find its way home across an entire ocean.','common','☀️'),
+  ('g1-8-4','Professor Snap the turtle can out-shine any sunbeam it sits in.','common','💧'),
+  ('g1-8-5','Professor Snap the turtle can win a staring contest with a frog.','common','🐢'),
+  ('g1-8-6','Professor Snap the turtle can balance a pebble on its nose.','legendary','🪷'),
+  ('g1-8-7','Professor Snap the turtle can snooze through an entire thunderstorm.','legendary','🌿'),
+  ('g1-8-8','Professor Snap the turtle can recognise its favourite human''s footsteps.','legendary','🫧'),
+  ('g1-8-9','Professor Snap the turtle can munch a strawberry in record-slow time.','epic','⭐'),
+  ('g1-8-10','Professor Snap the turtle can doze with both eyes half-closed.','common','⭐'),
+  ('g1-8-11','Professor Snap the turtle can hum a tune that calms the whole pond.','common','🌸'),
+  ('g1-9-0','Marbles the turtle can hold its breath for a whole afternoon.','common','🐚'),
+  ('g1-9-1','Marbles the turtle can nap on a lily pad without floating away.','common','🌈'),
+  ('g1-9-2','Marbles the turtle can sense a rainstorm an hour early.','common','☀️'),
+  ('g1-9-3','Marbles the turtle can find its way home across an entire ocean.','common','💧'),
+  ('g1-9-4','Marbles the turtle can out-shine any sunbeam it sits in.','common','🐢'),
+  ('g1-9-5','Marbles the turtle can win a staring contest with a frog.','common','🪷'),
+  ('g1-9-6','Marbles the turtle can balance a pebble on its nose.','common','🌿'),
+  ('g1-9-7','Marbles the turtle can snooze through an entire thunderstorm.','common','🫧'),
+  ('g1-9-8','Marbles the turtle can recognise its favourite human''s footsteps.','common','⭐'),
+  ('g1-9-9','Marbles the turtle can munch a strawberry in record-slow time.','common','🌸'),
+  ('g1-9-10','Marbles the turtle can doze with both eyes half-closed.','common','🫧'),
+  ('g1-9-11','Marbles the turtle can hum a tune that calms the whole pond.','common','⭐'),
+  ('g1-10-0','Admiral Driftwood the turtle can hold its breath for a whole afternoon.','common','🌿'),
+  ('g1-10-1','Admiral Driftwood the turtle can nap on a lily pad without floating away.','common','🫧'),
+  ('g1-10-2','Admiral Driftwood the turtle can sense a rainstorm an hour early.','common','⭐'),
+  ('g1-10-3','Admiral Driftwood the turtle can find its way home across an entire ocean.','common','🌸'),
+  ('g1-10-4','Admiral Driftwood the turtle can out-shine any sunbeam it sits in.','common','🌊'),
+  ('g1-10-5','Admiral Driftwood the turtle can win a staring contest with a frog.','common','🐠'),
+  ('g1-10-6','Admiral Driftwood the turtle can balance a pebble on its nose.','common','🍃'),
+  ('g1-10-7','Admiral Driftwood the turtle can snooze through an entire thunderstorm.','common','🌻'),
+  ('g1-10-8','Admiral Driftwood the turtle can recognise its favourite human''s footsteps.','common','🪨'),
+  ('g1-10-9','Admiral Driftwood the turtle can munch a strawberry in record-slow time.','common','🌅'),
+  ('g1-10-10','Admiral Driftwood the turtle can doze with both eyes half-closed.','common','🌈'),
+  ('g1-10-11','Admiral Driftwood the turtle can hum a tune that calms the whole pond.','common','☀️'),
+  ('g1-11-0','Biscuit the turtle can hold its breath for a whole afternoon.','epic','🫧'),
+  ('g1-11-1','Biscuit the turtle can nap on a lily pad without floating away.','epic','⭐'),
+  ('g1-11-2','Biscuit the turtle can sense a rainstorm an hour early.','legendary','🌸'),
+  ('g1-11-3','Biscuit the turtle can find its way home across an entire ocean.','legendary','🌊'),
+  ('g1-11-4','Biscuit the turtle can out-shine any sunbeam it sits in.','legendary','🐠'),
+  ('g1-11-5','Biscuit the turtle can win a staring contest with a frog.','common','🍃'),
+  ('g1-11-6','Biscuit the turtle can balance a pebble on its nose.','common','🌻'),
+  ('g1-11-7','Biscuit the turtle can snooze through an entire thunderstorm.','common','🪨'),
+  ('g1-11-8','Biscuit the turtle can recognise its favourite human''s footsteps.','common','🌅'),
+  ('g1-11-9','Biscuit the turtle can munch a strawberry in record-slow time.','common','🐚'),
+  ('g1-11-10','Biscuit the turtle can doze with both eyes half-closed.','common','🐚'),
+  ('g1-11-11','Biscuit the turtle can hum a tune that calms the whole pond.','common','🌈'),
+  ('g2-0-0','In Lily Lagoon, turtles love to sunbathe together at dawn.','rare','⭐'),
+  ('g2-0-1','In Lily Lagoon, turtles love to race snails (and lose, happily).','rare','🌸'),
+  ('g2-0-2','In Lily Lagoon, turtles love to collect the shiniest pebbles.','rare','🌊'),
+  ('g2-0-3','In Lily Lagoon, turtles love to hum softly to the tide.','rare','🐠'),
+  ('g2-0-4','In Lily Lagoon, turtles love to stack themselves into tiny towers.','rare','🍃'),
+  ('g2-0-5','In Lily Lagoon, turtles love to trade lily pads like postcards.','rare','🌻'),
+  ('g2-0-6','In Lily Lagoon, turtles love to nap in perfect synchronised rows.','rare','🪨'),
+  ('g2-0-7','In Lily Lagoon, turtles love to throw the gentlest splash parties.','rare','🌅'),
+  ('g2-1-0','In Coral Bay, turtles love to sunbathe together at dawn.','common','🌸'),
+  ('g2-1-1','In Coral Bay, turtles love to race snails (and lose, happily).','common','🌊'),
+  ('g2-1-2','In Coral Bay, turtles love to collect the shiniest pebbles.','common','🐠'),
+  ('g2-1-3','In Coral Bay, turtles love to hum softly to the tide.','common','🍃'),
+  ('g2-1-4','In Coral Bay, turtles love to stack themselves into tiny towers.','common','🌻'),
+  ('g2-1-5','In Coral Bay, turtles love to trade lily pads like postcards.','common','🪨'),
+  ('g2-1-6','In Coral Bay, turtles love to nap in perfect synchronised rows.','common','🌅'),
+  ('g2-1-7','In Coral Bay, turtles love to throw the gentlest splash parties.','common','🐚'),
+  ('g2-2-0','In the Misty Cove, turtles love to sunbathe together at dawn.','common','🌊'),
+  ('g2-2-1','In the Misty Cove, turtles love to race snails (and lose, happily).','common','🐠'),
+  ('g2-2-2','In the Misty Cove, turtles love to collect the shiniest pebbles.','common','🍃'),
+  ('g2-2-3','In the Misty Cove, turtles love to hum softly to the tide.','common','🌻'),
+  ('g2-2-4','In the Misty Cove, turtles love to stack themselves into tiny towers.','common','🪨'),
+  ('g2-2-5','In the Misty Cove, turtles love to trade lily pads like postcards.','common','🌅'),
+  ('g2-2-6','In the Misty Cove, turtles love to nap in perfect synchronised rows.','common','🐚'),
+  ('g2-2-7','In the Misty Cove, turtles love to throw the gentlest splash parties.','common','🌈'),
+  ('g2-3-0','In Pebble Beach, turtles love to sunbathe together at dawn.','epic','🐠'),
+  ('g2-3-1','In Pebble Beach, turtles love to race snails (and lose, happily).','epic','🍃'),
+  ('g2-3-2','In Pebble Beach, turtles love to collect the shiniest pebbles.','epic','🌻'),
+  ('g2-3-3','In Pebble Beach, turtles love to hum softly to the tide.','epic','🪨'),
+  ('g2-3-4','In Pebble Beach, turtles love to stack themselves into tiny towers.','epic','🌅'),
+  ('g2-3-5','In Pebble Beach, turtles love to trade lily pads like postcards.','rare','🐚'),
+  ('g2-3-6','In Pebble Beach, turtles love to nap in perfect synchronised rows.','rare','🌈'),
+  ('g2-3-7','In Pebble Beach, turtles love to throw the gentlest splash parties.','rare','☀️'),
+  ('g2-4-0','In Sunset Point, turtles love to sunbathe together at dawn.','common','🍃'),
+  ('g2-4-1','In Sunset Point, turtles love to race snails (and lose, happily).','common','🌻'),
+  ('g2-4-2','In Sunset Point, turtles love to collect the shiniest pebbles.','common','🪨'),
+  ('g2-4-3','In Sunset Point, turtles love to hum softly to the tide.','common','🌅'),
+  ('g2-4-4','In Sunset Point, turtles love to stack themselves into tiny towers.','common','🐚'),
+  ('g2-4-5','In Sunset Point, turtles love to trade lily pads like postcards.','common','🌈'),
+  ('g2-4-6','In Sunset Point, turtles love to nap in perfect synchronised rows.','common','☀️'),
+  ('g2-4-7','In Sunset Point, turtles love to throw the gentlest splash parties.','common','💧'),
+  ('g2-5-0','In Kelp Forest, turtles love to sunbathe together at dawn.','rare','🌻'),
+  ('g2-5-1','In Kelp Forest, turtles love to race snails (and lose, happily).','rare','🪨'),
+  ('g2-5-2','In Kelp Forest, turtles love to collect the shiniest pebbles.','rare','🌅'),
+  ('g2-5-3','In Kelp Forest, turtles love to hum softly to the tide.','rare','🐚'),
+  ('g2-5-4','In Kelp Forest, turtles love to stack themselves into tiny towers.','rare','🌈'),
+  ('g2-5-5','In Kelp Forest, turtles love to trade lily pads like postcards.','rare','☀️'),
+  ('g2-5-6','In Kelp Forest, turtles love to nap in perfect synchronised rows.','rare','💧'),
+  ('g2-5-7','In Kelp Forest, turtles love to throw the gentlest splash parties.','rare','🐢'),
+  ('g2-6-0','In Turtle Town, turtles love to sunbathe together at dawn.','common','🪨'),
+  ('g2-6-1','In Turtle Town, turtles love to race snails (and lose, happily).','common','🌅'),
+  ('g2-6-2','In Turtle Town, turtles love to collect the shiniest pebbles.','common','🐚'),
+  ('g2-6-3','In Turtle Town, turtles love to hum softly to the tide.','common','🌈'),
+  ('g2-6-4','In Turtle Town, turtles love to stack themselves into tiny towers.','common','☀️'),
+  ('g2-6-5','In Turtle Town, turtles love to trade lily pads like postcards.','common','💧'),
+  ('g2-6-6','In Turtle Town, turtles love to nap in perfect synchronised rows.','common','🐢'),
+  ('g2-6-7','In Turtle Town, turtles love to throw the gentlest splash parties.','legendary','🪷'),
+  ('g2-7-0','In Bubble Springs, turtles love to sunbathe together at dawn.','common','🌅'),
+  ('g2-7-1','In Bubble Springs, turtles love to race snails (and lose, happily).','common','🐚'),
+  ('g2-7-2','In Bubble Springs, turtles love to collect the shiniest pebbles.','common','🌈'),
+  ('g2-7-3','In Bubble Springs, turtles love to hum softly to the tide.','common','☀️'),
+  ('g2-7-4','In Bubble Springs, turtles love to stack themselves into tiny towers.','common','💧'),
+  ('g2-7-5','In Bubble Springs, turtles love to trade lily pads like postcards.','common','🐢'),
+  ('g2-7-6','In Bubble Springs, turtles love to nap in perfect synchronised rows.','common','🪷'),
+  ('g2-7-7','In Bubble Springs, turtles love to throw the gentlest splash parties.','common','🌿'),
+  ('g2-8-0','In Seagrass Meadow, turtles love to sunbathe together at dawn.','rare','🐚'),
+  ('g2-8-1','In Seagrass Meadow, turtles love to race snails (and lose, happily).','rare','🌈'),
+  ('g2-8-2','In Seagrass Meadow, turtles love to collect the shiniest pebbles.','rare','☀️'),
+  ('g2-8-3','In Seagrass Meadow, turtles love to hum softly to the tide.','rare','💧'),
+  ('g2-8-4','In Seagrass Meadow, turtles love to stack themselves into tiny towers.','rare','🐢'),
+  ('g2-8-5','In Seagrass Meadow, turtles love to trade lily pads like postcards.','rare','🪷'),
+  ('g2-8-6','In Seagrass Meadow, turtles love to nap in perfect synchronised rows.','rare','🌿'),
+  ('g2-8-7','In Seagrass Meadow, turtles love to throw the gentlest splash parties.','rare','🫧'),
+  ('g2-9-0','In Rainbow Reef, turtles love to sunbathe together at dawn.','common','🌈'),
+  ('g2-9-1','In Rainbow Reef, turtles love to race snails (and lose, happily).','common','☀️'),
+  ('g2-9-2','In Rainbow Reef, turtles love to collect the shiniest pebbles.','common','💧'),
+  ('g2-9-3','In Rainbow Reef, turtles love to hum softly to the tide.','common','🐢'),
+  ('g2-9-4','In Rainbow Reef, turtles love to stack themselves into tiny towers.','common','🪷'),
+  ('g2-9-5','In Rainbow Reef, turtles love to trade lily pads like postcards.','common','🌿'),
+  ('g2-9-6','In Rainbow Reef, turtles love to nap in perfect synchronised rows.','common','🫧'),
+  ('g2-9-7','In Rainbow Reef, turtles love to throw the gentlest splash parties.','common','⭐'),
+  ('g3-0-0','Legend says the ancient turtle once napped for a hundred years.','common','🌸'),
+  ('g3-0-1','Legend says the ancient turtle taught the tide how to be patient.','common','🌊'),
+  ('g3-0-2','Legend says the ancient turtle carries a whole galaxy on its shell.','common','🐠'),
+  ('g3-0-3','Legend says the ancient turtle knows the name of every star.','common','🍃'),
+  ('g3-0-4','Legend says the ancient turtle invented the art of slowing down.','common','🌻'),
+  ('g3-0-5','Legend says the ancient turtle out-waited a glacier.','common','🪨'),
+  ('g3-0-6','Legend says the ancient turtle befriended a very lost seagull.','common','🌅'),
+  ('g3-0-7','Legend says the ancient turtle keeps the pond''s oldest secret.','common','🐚'),
+  ('g3-1-0','Legend says the sleepy turtle once napped for a hundred years.','epic','🌊'),
+  ('g3-1-1','Legend says the sleepy turtle taught the tide how to be patient.','epic','🐠'),
+  ('g3-1-2','Legend says the sleepy turtle carries a whole galaxy on its shell.','epic','🍃'),
+  ('g3-1-3','Legend says the sleepy turtle knows the name of every star.','epic','🌻'),
+  ('g3-1-4','Legend says the sleepy turtle invented the art of slowing down.','epic','🪨'),
+  ('g3-1-5','Legend says the sleepy turtle out-waited a glacier.','epic','🌅'),
+  ('g3-1-6','Legend says the sleepy turtle befriended a very lost seagull.','rare','🐚'),
+  ('g3-1-7','Legend says the sleepy turtle keeps the pond''s oldest secret.','rare','🌈'),
+  ('g3-2-0','Legend says the majestic turtle once napped for a hundred years.','common','🐠'),
+  ('g3-2-1','Legend says the majestic turtle taught the tide how to be patient.','common','🍃'),
+  ('g3-2-2','Legend says the majestic turtle carries a whole galaxy on its shell.','common','🌻'),
+  ('g3-2-3','Legend says the majestic turtle knows the name of every star.','common','🪨'),
+  ('g3-2-4','Legend says the majestic turtle invented the art of slowing down.','common','🌅'),
+  ('g3-2-5','Legend says the majestic turtle out-waited a glacier.','common','🐚'),
+  ('g3-2-6','Legend says the majestic turtle befriended a very lost seagull.','common','🌈'),
+  ('g3-2-7','Legend says the majestic turtle keeps the pond''s oldest secret.','common','☀️'),
+  ('g3-3-0','Legend says the tiny turtle once napped for a hundred years.','rare','🍃'),
+  ('g3-3-1','Legend says the tiny turtle taught the tide how to be patient.','rare','🌻'),
+  ('g3-3-2','Legend says the tiny turtle carries a whole galaxy on its shell.','rare','🪨'),
+  ('g3-3-3','Legend says the tiny turtle knows the name of every star.','rare','🌅'),
+  ('g3-3-4','Legend says the tiny turtle invented the art of slowing down.','rare','🐚'),
+  ('g3-3-5','Legend says the tiny turtle out-waited a glacier.','rare','🌈'),
+  ('g3-3-6','Legend says the tiny turtle befriended a very lost seagull.','rare','☀️'),
+  ('g3-3-7','Legend says the tiny turtle keeps the pond''s oldest secret.','rare','💧'),
+  ('g3-4-0','Legend says the wise turtle once napped for a hundred years.','common','🌻'),
+  ('g3-4-1','Legend says the wise turtle taught the tide how to be patient.','common','🪨'),
+  ('g3-4-2','Legend says the wise turtle carries a whole galaxy on its shell.','common','🌅'),
+  ('g3-4-3','Legend says the wise turtle knows the name of every star.','common','🐚'),
+  ('g3-4-4','Legend says the wise turtle invented the art of slowing down.','common','🌈'),
+  ('g3-4-5','Legend says the wise turtle out-waited a glacier.','common','☀️'),
+  ('g3-4-6','Legend says the wise turtle befriended a very lost seagull.','common','💧'),
+  ('g3-4-7','Legend says the wise turtle keeps the pond''s oldest secret.','common','🐢'),
+  ('g3-5-0','Legend says the rainbow turtle once napped for a hundred years.','common','🪨'),
+  ('g3-5-1','Legend says the rainbow turtle taught the tide how to be patient.','common','🌅'),
+  ('g3-5-2','Legend says the rainbow turtle carries a whole galaxy on its shell.','common','🐚'),
+  ('g3-5-3','Legend says the rainbow turtle knows the name of every star.','common','🌈'),
+  ('g3-5-4','Legend says the rainbow turtle invented the art of slowing down.','common','☀️'),
+  ('g3-5-5','Legend says the rainbow turtle out-waited a glacier.','common','💧'),
+  ('g3-5-6','Legend says the rainbow turtle befriended a very lost seagull.','common','🐢'),
+  ('g3-5-7','Legend says the rainbow turtle keeps the pond''s oldest secret.','common','🪷'),
+  ('g3-6-0','Legend says the moonlit turtle once napped for a hundred years.','epic','🌅'),
+  ('g3-6-1','Legend says the moonlit turtle taught the tide how to be patient.','rare','🐚'),
+  ('g3-6-2','Legend says the moonlit turtle carries a whole galaxy on its shell.','rare','🌈'),
+  ('g3-6-3','Legend says the moonlit turtle knows the name of every star.','rare','☀️'),
+  ('g3-6-4','Legend says the moonlit turtle invented the art of slowing down.','rare','💧'),
+  ('g3-6-5','Legend says the moonlit turtle out-waited a glacier.','rare','🐢'),
+  ('g3-6-6','Legend says the moonlit turtle befriended a very lost seagull.','rare','🪷'),
+  ('g3-6-7','Legend says the moonlit turtle keeps the pond''s oldest secret.','rare','🌿'),
+  ('g3-7-0','Legend says the golden turtle once napped for a hundred years.','common','🐚'),
+  ('g3-7-1','Legend says the golden turtle taught the tide how to be patient.','common','🌈'),
+  ('g3-7-2','Legend says the golden turtle carries a whole galaxy on its shell.','common','☀️'),
+  ('g3-7-3','Legend says the golden turtle knows the name of every star.','common','💧'),
+  ('g3-7-4','Legend says the golden turtle invented the art of slowing down.','common','🐢'),
+  ('g3-7-5','Legend says the golden turtle out-waited a glacier.','common','🪷'),
+  ('g3-7-6','Legend says the golden turtle befriended a very lost seagull.','common','🌿'),
+  ('g3-7-7','Legend says the golden turtle keeps the pond''s oldest secret.','common','🫧'),
+  ('g3-8-0','Legend says the bashful turtle once napped for a hundred years.','rare','🌈'),
+  ('g3-8-1','Legend says the bashful turtle taught the tide how to be patient.','rare','☀️'),
+  ('g3-8-2','Legend says the bashful turtle carries a whole galaxy on its shell.','rare','💧'),
+  ('g3-8-3','Legend says the bashful turtle knows the name of every star.','rare','🐢'),
+  ('g3-8-4','Legend says the bashful turtle invented the art of slowing down.','common','🪷'),
+  ('g3-8-5','Legend says the bashful turtle out-waited a glacier.','common','🌿'),
+  ('g3-8-6','Legend says the bashful turtle befriended a very lost seagull.','common','🫧'),
+  ('g3-8-7','Legend says the bashful turtle keeps the pond''s oldest secret.','common','⭐'),
+  ('g3-9-0','Legend says the legendary turtle once napped for a hundred years.','common','☀️'),
+  ('g3-9-1','Legend says the legendary turtle taught the tide how to be patient.','common','💧'),
+  ('g3-9-2','Legend says the legendary turtle carries a whole galaxy on its shell.','common','🐢'),
+  ('g3-9-3','Legend says the legendary turtle knows the name of every star.','legendary','🪷'),
+  ('g3-9-4','Legend says the legendary turtle invented the art of slowing down.','legendary','🌿'),
+  ('g3-9-5','Legend says the legendary turtle out-waited a glacier.','legendary','🫧'),
+  ('g3-9-6','Legend says the legendary turtle befriended a very lost seagull.','epic','⭐'),
+  ('g3-9-7','Legend says the legendary turtle keeps the pond''s oldest secret.','epic','🌸'),
+  ('g4-0','A turtle''s favourite snack is a crisp leaf of lettuce.','common','🫧'),
+  ('g4-1','A turtle''s favourite snack is a single perfect strawberry.','common','⭐'),
+  ('g4-2','A turtle''s favourite snack is sun-warmed seagrass.','common','🌸'),
+  ('g4-3','A turtle''s favourite snack is a dandelion (the yellow ones).','common','🌊'),
+  ('g4-4','A turtle''s favourite snack is a slice of cucumber.','common','🐠'),
+  ('g4-5','A turtle''s favourite snack is a handful of pond clover.','common','🍃'),
+  ('g4-6','A turtle''s favourite snack is a ripe blueberry.','common','🌻'),
+  ('g4-7','A turtle''s favourite snack is a petal from a lily flower.','common','🪨'),
+  ('g5-0','Turtles dream of endless sunny lily pads.','epic','⭐'),
+  ('g5-1','Turtles dream of a beach made entirely of snacks.','legendary','🌸'),
+  ('g5-2','Turtles dream of racing clouds across the sky.','legendary','🌊'),
+  ('g5-3','Turtles dream of a warm rock and nowhere to be.','legendary','🐠'),
+  ('g5-4','Turtles dream of the softest seagrass meadow.','common','🍃'),
+  ('g5-5','Turtles dream of becoming a very small island.','common','🌻'),
+  ('g5-6','Turtles dream of a pond with no edges.','common','🪨'),
+  ('g5-7','Turtles dream of floating among the stars.','common','🌅'),
+  ('r-no-teeth','Toothless Wonders: Turtles have no teeth! They use a sharp, beak-like mouth to chomp their food.','rare','🦷'),
+  ('r-breathe-butt','Bum Breathers: Some turtles can absorb oxygen through their rear end — cloacal respiration! Truly elite.','epic','🍑'),
+  ('r-shell-bones','Built-in Backpack: A turtle''s shell is fused to its spine and ribs — it can''t ever leave home without it.','rare','🎒'),
+  ('r-ancient','Older Than Dinosaurs: Turtles have been around for over 200 million years, predating snakes and crocodiles.','epic','🦕'),
+  ('r-oldest','Jonathan the Tortoise: Jonathan, a Seychelles tortoise, is ~190+ years old — possibly the oldest land animal alive.','legendary','🎂'),
+  ('r-tears','Salty Criers: Sea turtles ''cry'' to flush out extra salt. Not sad — just very well hydrated.','rare','😢'),
+  ('r-navigation','Magnetic Maps: Sea turtles sense Earth''s magnetic field to navigate thousands of miles back to their birth beach.','epic','🧭'),
+  ('r-temperature-sex','Warm = Girls: For many turtles, nest temperature decides the babies'' sex. Warmer sand → more females.','rare','🌡️'),
+  ('r-fast-leatherback','Speedy Swimmer: Leatherback sea turtles can swim up to 35 km/h — faster than you''d ever guess.','epic','💨'),
+  ('r-group-name','A Bale of Turtles: A group of turtles is called a ''bale.'' A bale of turtles. Say it again. Lovely.','rare','👯'),
+  ('r-care-basking','Sunbathing Pros: Pet turtles need a basking spot with UVB light to stay healthy and build strong shells.','rare','☀️'),
+  ('r-care-clean','Clean Pond Club: Turtles are messy! A good filter keeps their water clear and their little selves happy.','rare','🫧'),
+  ('r-tiny-speck','Smallest Turtle: The speckled padloper tortoise fits in your palm at under 10 cm. Pocket-sized perfection.','epic','🤏'),
+  ('r-biggest','Gentle Giant: Leatherbacks can weigh over 900 kg — a turtle the size of a small car.','legendary','🚗'),
+  ('r-hibernate','Pond Naps: Some turtles brumate (reptile hibernation) underwater all winter. The original cozy nappers.','rare','😴'),
+  ('r-shell-feel','Shells Can Feel: A shell isn''t armor-armor — it has nerve endings. Turtles can feel a gentle scratch.','rare','🫶')
+on conflict (id) do update set text = excluded.text, rarity = excluded.rarity, emoji = excluded.emoji;
+
+-- ====================== storage: turtle photo bucket + policies ======================
+insert into storage.buckets (id, name, public) values ('turtles','turtles', true)
+  on conflict (id) do nothing;
+create policy "own turtle uploads" on storage.objects for insert to authenticated
+  with check (bucket_id = 'turtles' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "own turtle updates" on storage.objects for update to authenticated
+  using (bucket_id = 'turtles' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "own turtle deletes" on storage.objects for delete to authenticated
+  using (bucket_id = 'turtles' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "public turtle reads" on storage.objects for select using (bucket_id = 'turtles');

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useStore } from "@/store/useStore";
+import { useStore, isCloudMode } from "@/store/useStore";
+import { cloudOpenBooster } from "@/lib/cloudEconomy";
 import { useFeedback } from "@/components/feedback";
 import { Card, PillButton, formatNum } from "@/components/common";
 import { ALL_FACT_CARDS, RARITY, type CardRarity, type FactCardDef } from "@/data/factCards";
@@ -38,8 +39,9 @@ export function FactsLibrary() {
     [filter],
   );
 
-  const open = (paid: boolean) => {
-    const res = openBooster(paid);
+  const open = async (paid: boolean) => {
+    // cloud mode: the SERVER rolls the cards (authoritative); local mode rolls locally
+    const res = isCloudMode() ? await cloudOpenBooster(paid) : openBooster(paid);
     if (!res.ok || !res.cards) {
       toast(res.reason ?? "Couldn't open that", "🐢");
       return;
