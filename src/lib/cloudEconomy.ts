@@ -47,7 +47,7 @@ export async function loadCloudState(): Promise<AppState | null> {
   const uidv = await currentUserId();
   if (!uidv) return null;
 
-  const [user, wallet, entries, inv, shields, cards, tasks, notif, ledger] = await Promise.all([
+  const [user, wallet, entries, inv, shields, cards, tasks, notif, ledger, facts] = await Promise.all([
     sb.from("app_user").select("*").eq("id", uidv).maybeSingle(),
     sb.from("wallet").select("*").eq("user_id", uidv).maybeSingle(),
     sb.from("turtle_entry").select("*").eq("user_id", uidv),
@@ -57,9 +57,14 @@ export async function loadCloudState(): Promise<AppState | null> {
     sb.from("task_item").select("id, title, done, last_done, created_at").eq("user_id", uidv),
     sb.from("notification_settings").select("*").eq("user_id", uidv).maybeSingle(),
     sb.from("turtbux_ledger").select("*").eq("user_id", uidv).order("created_at", { ascending: false }).limit(200),
+    sb.from("user_fact_read").select("fact_id, read_at").eq("user_id", uidv),
   ]);
 
   const base = makeInitialState();
+  // carry device-only/derived fields that aren't (yet) columns server-side so a
+  // rehydrate doesn't wipe them: stat counters and local sound/haptic prefs.
+  const prev = useStore.getState();
+  const today = todayKey();
   const u = user.data ?? {};
   const w = wallet.data ?? { balance: 0, lifetime_earned: 0, lifetime_spent: 0 };
 
@@ -74,9 +79,21 @@ export async function loadCloudState(): Promise<AppState | null> {
 
   const n = notif.data as { daily_reminder_enabled?: boolean; reminder_time?: string; streak_risk_enabled?: boolean; fact_of_day_enabled?: boolean } | null;
 
+  const factsRead: Record<string, string> = {};
+  for (const f of facts.data ?? []) factsRead[(f as { fact_id: string }).fact_id] = (f as { read_at: string }).read_at;
+
+  const taskDate = localDate((u as { task_date?: string }).task_date);
+  const taskEarned = (u as { task_earned?: number }).task_earned ?? 0;
+  const taskSteps = (u as { task_steps_today?: number }).task_steps_today ?? 0;
+
   return {
     ...base,
     onboarded: true,
+    factsRead,
+    // stat counters have no server column yet — preserve the on-device value so
+    // achievements (first flip, zen master…) aren't reset to 0 on every rehydrate.
+    gamesWon: prev.gamesWon ?? 0,
+    mantrasFocused: prev.mantrasFocused ?? 0,
     profile: {
       displayName: (u as { display_name?: string }).display_name ?? "Pond Keeper",
       mascot: ((u as { mascot?: "turtley" | "shelldon" }).mascot ?? "turtley"),
@@ -95,13 +112,19 @@ export async function loadCloudState(): Promise<AppState | null> {
     quest: {
       tasks: (tasks.data ?? []).map((t) => ({ id: (t as { id: string }).id, title: (t as { title: string }).title, done: (t as { done: boolean }).done, lastDoneDate: (t as { last_done?: string }).last_done ?? undefined, createdAt: (t as { created_at: string }).created_at })),
       steps: (u as { trek_steps?: number }).trek_steps ?? 0,
-      resetDate: todayKey(),
+      resetDate: today,
       streakCurrent: (u as { trek_streak?: number }).trek_streak ?? 0,
       streakLongest: (u as { trek_longest?: number }).trek_longest ?? 0,
+      lastCompletedDate: localDate((u as { trek_last_date?: string }).trek_last_date),
+      // restore today's daily caps so the optimistic UI enforces them client-side
+      reward: taskDate === today ? { date: today, earned: taskEarned } : undefined,
+      stepsToday: taskDate === today ? { date: today, count: taskSteps } : undefined,
     },
     notifications: n
-      ? { dailyReminderEnabled: n.daily_reminder_enabled ?? true, reminderTime: n.reminder_time ?? "19:00", streakRiskEnabled: n.streak_risk_enabled ?? true, factOfDayEnabled: n.fact_of_day_enabled ?? false, soundEnabled: false, hapticsEnabled: true }
-      : base.notifications,
+      ? { dailyReminderEnabled: n.daily_reminder_enabled ?? true, reminderTime: n.reminder_time ?? "19:00", streakRiskEnabled: n.streak_risk_enabled ?? true, factOfDayEnabled: n.fact_of_day_enabled ?? false,
+          // sound/haptics/push are device-local (no server column) — keep this device's choice
+          soundEnabled: prev.notifications.soundEnabled ?? false, hapticsEnabled: prev.notifications.hapticsEnabled ?? true, pushEnabled: prev.notifications.pushEnabled }
+      : prev.notifications,
     // daily flags so the UI reflects what the server has already granted today
     lastBoosterOn: localDate((u as { last_booster_on?: string }).last_booster_on),
     loginBonusClaimedOn: localDate((u as { login_bonus_on?: string }).login_bonus_on),
@@ -141,8 +164,17 @@ export async function migrateLocalUp(local: AppState): Promise<void> {
   await sb.rpc("srv_import_state", { p_state: local as unknown as Record<string, unknown> });
 }
 
+// Serialize reconcile calls so dependent actions land on the server in order
+// (e.g. buy a shield THEN use it — otherwise srv_shield_day races ahead and
+// finds no shield). Failures are isolated so one bad call can't break the chain.
+let reconcileChain: Promise<void> = Promise.resolve();
+export function economyReconcile(kind: EconomyKind, payload: unknown): Promise<void> {
+  reconcileChain = reconcileChain.then(() => reconcileOne(kind, payload)).catch(() => {});
+  return reconcileChain;
+}
+
 /** The reconciler registered into the store in cloud mode. */
-export async function economyReconcile(kind: EconomyKind, payload: unknown): Promise<void> {
+async function reconcileOne(kind: EconomyKind, payload: unknown): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
   const p = (payload ?? {}) as Record<string, unknown>;
@@ -198,6 +230,14 @@ export async function economyReconcile(kind: EconomyKind, payload: unknown): Pro
         const { data, error } = await sb.rpc("srv_fact_of_day", { p_date: today });
         if (error) throw error;
         balance = (data as { balance?: number })?.balance;
+        break;
+      }
+      case "fact_read": {
+        // read_fact is idempotent server-side (awards once); refresh the wallet after.
+        const { error } = await sb.rpc("read_fact", { p_fact_id: p.factId });
+        if (error) throw error;
+        const { data: w } = await sb.from("wallet").select("balance").eq("user_id", uidv).maybeSingle();
+        balance = (w as { balance?: number } | null)?.balance;
         break;
       }
       case "minigame":

@@ -106,8 +106,10 @@ export function Account() {
   const doSignOut = () =>
     run(async () => {
       await cloud.signOut();
+      // wipe this device's data so the next person to sign in doesn't inherit
+      // (and can't accidentally migrate) the previous account's pond.
+      useStore.getState().reset();
       setUser(null);
-      setCloud({ autoBackup: false, email: undefined, lastBackupAt: undefined });
       toast("Signed out", "👋");
     });
 

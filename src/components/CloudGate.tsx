@@ -16,6 +16,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>(isSupabaseEnabled ? "loading" : "ready");
   const [errMsg, setErrMsg] = useState("");
   const setup = useRef(false);
+  const wasSignedIn = useRef(false);
 
   useEffect(() => {
     if (!isSupabaseEnabled) return;
@@ -46,6 +47,11 @@ export function CloudGate({ children }: { children: ReactNode }) {
 
     const onSession = async (hasSession: boolean) => {
       if (!hasSession) {
+        // a real sign-out (was signed in -> now not): clear this device's data so
+        // the next account doesn't inherit it. Don't clear on the initial no-session,
+        // or we'd wipe local data before it can migrate up on first sign-in.
+        if (wasSignedIn.current) useStore.getState().reset();
+        wasSignedIn.current = false;
         setEconomyReconciler(null);
         setup.current = false;
         clearTimeout(watchdog);
@@ -54,6 +60,7 @@ export function CloudGate({ children }: { children: ReactNode }) {
       }
       if (setup.current) return;
       setup.current = true;
+      wasSignedIn.current = true;
       setEconomyReconciler(economyReconcile);
       try {
         try {

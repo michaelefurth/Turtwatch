@@ -44,7 +44,7 @@ export const isHydrating = () => hydrating;
 // reward and the authoritative wallet/state is patched back. Null in local mode.
 export type EconomyKind =
   | "upload" | "repair" | "ai_rescue" | "shield" | "purchase" | "booster"
-  | "login" | "fact_of_day" | "minigame" | "mantra" | "toggle_task" | "add_task" | "remove_task";
+  | "login" | "fact_of_day" | "fact_read" | "minigame" | "mantra" | "toggle_task" | "add_task" | "remove_task";
 let reconciler: ((kind: EconomyKind, payload: unknown) => void) | null = null;
 export function setEconomyReconciler(fn: ((kind: EconomyKind, payload: unknown) => void) | null) {
   reconciler = fn;
@@ -195,8 +195,10 @@ export const useStore = create<Store>((set, get) => {
       entry.bonuses = { note: hasNotes && !basePaid, meta: hasMeta && !basePaid };
 
       let money = reward.total > 0 ? applyDelta(s, reward.total, "upload", "entry", date) : {};
-      // surprise "golden turtle" — a rare extra bonus on a first on-time upload
-      if (!basePaid && Math.random() < GOLDEN_TURTLE_PROB) {
+      // surprise "golden turtle" — a rare extra bonus on a first on-time upload.
+      // In cloud mode the SERVER rolls this (srv_upload); rolling here too would
+      // double-pay, so let applyServerWallet be the source of truth instead.
+      if (!basePaid && !isCloudMode() && Math.random() < GOLDEN_TURTLE_PROB) {
         money = applyDelta({ ...s, ...money }, GOLDEN_TURTLE_BONUS, "lucky_upload", "entry", date);
         entry.earnedTurtbux += GOLDEN_TURTLE_BONUS; // so delete fully reverses it
         reward.parts.push({ label: "✨ Golden turtle!", amount: GOLDEN_TURTLE_BONUS });
@@ -331,6 +333,9 @@ export const useStore = create<Store>((set, get) => {
       const shields = [...s.shields, { id: uid(), status: "available" as const, acquiredAt: nowIso() }];
       const money = applyDelta(s, -SHIELD_PRICE, "shield_buy", "shield");
       commit({ shields, ...money });
+      // cloud: actually create the shield server-side, else a following shieldDay()
+      // reconcile finds none and rolls back. (Serialized so it lands first.)
+      reconciler?.("purchase", { itemId: "buy_shield" });
       return { ok: true };
     },
 
@@ -419,6 +424,7 @@ export const useStore = create<Store>((set, get) => {
       const money = applyDelta(s, fact.reward, "fact_read", "fact", factId);
       const { achievements } = evaluate({ ...s, factsRead, ...money });
       commit({ factsRead, ...money, achievements });
+      reconciler?.("fact_read", { factId });
       return fact.reward;
     },
 
