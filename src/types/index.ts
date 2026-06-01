@@ -28,6 +28,7 @@ export type LedgerReason =
   | "onboarding_gift"
   | "minigame"
   | "mantra"
+  | "task"
   | "refund"
   | "admin";
 
@@ -118,6 +119,24 @@ export interface Achievement {
   emoji: string;
 }
 
+export interface TaskItem {
+  id: string;
+  title: string;
+  done: boolean;
+  lastDoneDate?: string; // date key when this task last paid out (anti-farm)
+  createdAt: string;
+}
+
+export interface QuestState {
+  tasks: TaskItem[];
+  steps: number; // lifetime journey steps (1 per completed task/day)
+  resetDate: string; // date the `done` flags correspond to
+  streakCurrent: number;
+  streakLongest: number;
+  lastCompletedDate?: string; // last day ≥1 task was completed
+  reward?: { date: string; earned: number }; // daily Turtbux cap tracker
+}
+
 export interface NotificationSettings {
   dailyReminderEnabled: boolean;
   reminderTime: string; // "HH:mm"
@@ -163,6 +182,8 @@ export interface AppState {
   /** lifetime counts for profile stats + achievements */
   gamesWon?: number;
   mantrasFocused?: number;
+  /** Turtle Trek — daily goals that move a turtle along a journey */
+  quest?: QuestState;
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }

@@ -15,6 +15,10 @@ import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { uploadReward, ONBOARDING_GIFT, FACT_OF_DAY } from "@/logic/turtbux";
 import { remainingGameReward } from "@/logic/flipgame";
 import { remainingMantraReward } from "@/logic/mantras";
+import {
+  makeQuest, withDailyReset, remainingTaskReward, nextStreak, arrivalLandmark,
+  reachedCount, TASK_REWARD, LEG_BONUS, type Landmark,
+} from "@/logic/quest";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
 import { generateAiTurtle } from "@/data/sampleTurtles";
@@ -57,6 +61,10 @@ interface Actions {
   claimFactOfDay: () => number;
   awardGameReward: (amount: number) => number; // returns Turtbux actually awarded
   awardMantraReward: (amount: number) => number;
+  ensureQuestDaily: () => void;
+  addTask: (title: string) => void;
+  removeTask: (id: string) => void;
+  toggleTask: (id: string) => { rewarded: number; arrived: Landmark | null };
   updateNotifications: (n: Partial<NotificationSettings>) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
   markReminderFired: () => void;
@@ -401,6 +409,77 @@ export const useStore = create<Store>((set, get) => {
       return award;
     },
 
+    ensureQuestDaily: () => {
+      const s = get();
+      const today = todayKey();
+      const q = withDailyReset(s.quest ?? makeQuest(today), today);
+      if (q !== s.quest) commit({ quest: q });
+    },
+
+    addTask: (title) => {
+      const t = title.trim();
+      if (!t) return;
+      const s = get();
+      const today = todayKey();
+      const q = withDailyReset(s.quest ?? makeQuest(today), today);
+      const task = { id: uid(), title: t.slice(0, 80), done: false, createdAt: nowIso() };
+      commit({ quest: { ...q, tasks: [...q.tasks, task] } });
+    },
+
+    removeTask: (id) => {
+      const s = get();
+      if (!s.quest) return;
+      commit({ quest: { ...s.quest, tasks: s.quest.tasks.filter((t) => t.id !== id) } });
+    },
+
+    toggleTask: (id) => {
+      const s = get();
+      const today = todayKey();
+      const yesterday = addDays(today, -1);
+      const base = withDailyReset(s.quest ?? makeQuest(today), today);
+      const task = base.tasks.find((t) => t.id === id);
+      if (!task) return { rewarded: 0, arrived: null };
+
+      if (task.done) {
+        // un-tick: keep journey progress & rewards, just clear the checkbox
+        const tasks = base.tasks.map((t) => (t.id === id ? { ...t, done: false } : t));
+        commit({ quest: { ...base, tasks } });
+        return { rewarded: 0, arrived: null };
+      }
+
+      const firstPayoutToday = task.lastDoneDate !== today; // anti-farm: pay once/day/task
+      const tasks = base.tasks.map((t) =>
+        t.id === id ? { ...t, done: true, lastDoneDate: firstPayoutToday ? today : t.lastDoneDate } : t,
+      );
+
+      if (!firstPayoutToday) {
+        commit({ quest: { ...base, tasks } });
+        return { rewarded: 0, arrived: null };
+      }
+
+      const oldSteps = base.steps;
+      const steps = oldSteps + 1;
+      const arrived = arrivalLandmark(oldSteps, steps);
+      const earnedToday = base.reward?.date === today ? base.reward.earned : 0;
+      const taskPay = remainingTaskReward(earnedToday, TASK_REWARD);
+      const legPay = arrived ? LEG_BONUS : 0; // milestone bonus is exempt from the daily cap
+      const rewarded = taskPay + legPay;
+      const streakCurrent = nextStreak(base.lastCompletedDate, today, yesterday, base.streakCurrent);
+      const quest = {
+        ...base,
+        tasks,
+        steps,
+        reward: { date: today, earned: earnedToday + taskPay },
+        streakCurrent,
+        streakLongest: Math.max(base.streakLongest, streakCurrent),
+        lastCompletedDate: today,
+      };
+      const money = rewarded > 0 ? applyDelta(s, rewarded, "task", "quest") : {};
+      const { achievements } = evaluate({ ...s, quest, ...money });
+      commit({ quest, achievements, ...money });
+      return { rewarded, arrived };
+    },
+
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
     markReminderFired: () => commit({ lastReminderOn: todayKey() }),
@@ -487,6 +566,9 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
   if ((s.gamesWon ?? 0) >= 10) earn("flip_master");
   if ((s.mantrasFocused ?? 0) >= 1) earn("first_mantra");
   if ((s.mantrasFocused ?? 0) >= 25) earn("zen_master");
+  if (s.quest && s.quest.steps >= 1) earn("first_task");
+  if (s.quest && reachedCount(s.quest.steps) >= 10) earn("globetrotter");
+  if (s.quest && s.quest.streakLongest >= 7) earn("goal_getter");
 
   void ACHIEVEMENTS;
   return { achievements, newAchievements: newly };
@@ -497,11 +579,11 @@ function stripState(s: Store): AppState {
   const {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, cloud,
+    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, quest, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
-    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, cloud,
+    autoShieldCheckedOn, lastReminderOn, game, mantra, gamesWon, mantrasFocused, quest, cloud,
   };
 }

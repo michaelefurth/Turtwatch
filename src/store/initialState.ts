@@ -33,6 +33,7 @@ export function makeInitialState(): AppState {
     mantra: undefined,
     gamesWon: 0,
     mantrasFocused: 0,
+    quest: undefined,
     cloud: { autoBackup: false },
   };
 }

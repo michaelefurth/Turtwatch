@@ -17,4 +17,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "flip_master", title: "Flip Master", description: "Win 10 Turtle Flip games.", emoji: "🃏" },
   { id: "first_mantra", title: "Deep Breath", description: "Complete your first mantra focus.", emoji: "🧘" },
   { id: "zen_master", title: "Pond Zen", description: "Complete 25 mantra focuses.", emoji: "🌸" },
+  { id: "first_task", title: "Goal Starter", description: "Complete your first daily goal.", emoji: "✅" },
+  { id: "goal_getter", title: "Goal Getter", description: "Reach a 7-day goal streak.", emoji: "🎯" },
+  { id: "globetrotter", title: "Globetrotter", description: "Reach 10 places on your trek.", emoji: "🗺️" },
 ];

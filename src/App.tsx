@@ -11,6 +11,7 @@ import { CalendarScreen } from "@/screens/Calendar";
 import { Feed } from "@/screens/Feed";
 import { FlipGame } from "@/screens/FlipGame";
 import { Mantras } from "@/screens/Mantras";
+import { Quest } from "@/screens/Quest";
 import { Account } from "@/screens/Account";
 import { EntryDetail } from "@/screens/EntryDetail";
 import { MissedDayRepair } from "@/screens/MissedDayRepair";
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/feed" element={<Feed />} />
             <Route path="/play" element={<FlipGame />} />
             <Route path="/mantras" element={<Mantras />} />
+            <Route path="/quest" element={<Quest />} />
             <Route path="/account" element={<Account />} />
             <Route path="/day/:date" element={<EntryDetail />} />
             <Route path="/repair/:date" element={<MissedDayRepair />} />

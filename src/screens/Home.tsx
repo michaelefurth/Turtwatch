@@ -175,6 +175,19 @@ export function Home() {
         </div>
       </Card>
 
+      <Card onClick={() => nav("/quest")} className="flat">
+        <div className="between">
+          <div className="row">
+            <span style={{ fontSize: 30 }} aria-hidden>🗺️</span>
+            <div>
+              <h3 style={{ margin: 0 }}>Turtle Trek</h3>
+              <span className="muted" style={{ fontSize: 13 }}>Tick off daily goals → journey to new places + earn 🪙</span>
+            </div>
+          </div>
+          <span className="chip">Goals 🎯</span>
+        </div>
+      </Card>
+
       <Card onClick={() => nav("/play")} className="flat">
         <div className="between">
           <div className="row">
