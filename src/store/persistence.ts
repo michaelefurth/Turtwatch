@@ -3,6 +3,7 @@
 // stays identical.
 
 import type { AppState } from "@/types";
+import { makeInitialState } from "./initialState";
 
 const KEY = "turtwatch.v1";
 const SCHEMA_VERSION = 2;
@@ -17,11 +18,16 @@ export function loadState(): AppState | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Persisted | AppState;
-    // Versioned envelope — ignore data from an incompatible older shape so a
-    // schema change can't crash the app with undefined fields.
     if (parsed && typeof parsed === "object" && "__v" in parsed) {
-      if ((parsed as Persisted).__v !== SCHEMA_VERSION) return null;
-      return (parsed as Persisted).state;
+      const st = (parsed as Persisted).state;
+      if ((parsed as Persisted).__v === SCHEMA_VERSION) return st;
+      // Older version: best-effort migrate by filling any newly-added fields with
+      // defaults instead of discarding the user's turtles. Only attempt this when
+      // the core shape is present, so a corrupt blob still starts fresh safely.
+      if (st && typeof st === "object" && "entries" in st && "wallet" in st) {
+        return { ...makeInitialState(), ...st };
+      }
+      return null;
     }
     return null; // pre-versioned data: start fresh rather than risk drift
   } catch {

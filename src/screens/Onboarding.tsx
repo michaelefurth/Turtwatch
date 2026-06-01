@@ -6,6 +6,7 @@ import { useFeedback } from "@/components/feedback";
 import { Mascot } from "@/components/Mascot";
 import { Card, PillButton } from "@/components/common";
 import { THEMES } from "@/data/shopItems";
+import { ONBOARDING_GIFT } from "@/logic/turtbux";
 import { requestNotificationPermission } from "@/lib/notifications";
 import type { Mascot as MascotType } from "@/types";
 
@@ -41,7 +42,7 @@ export function Onboarding() {
     useStore.getState().updateNotifications({ dailyReminderEnabled: reminders, reminderTime });
     if (reminders) void requestNotificationPermission();
     celebrate(["🪙", "🐢", "✨"]);
-    toast("Welcome! +50 Turtbux to start 🪙", "🎉");
+    toast(`Welcome! +${ONBOARDING_GIFT} Turtbux to start 🪙`, "🎉");
     nav("/");
   };
 

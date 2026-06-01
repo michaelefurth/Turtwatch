@@ -174,7 +174,7 @@ export function Settings() {
         <PillButton variant="danger" onClick={() => setConfirmReset(true)}>🗑️ Reset everything</PillButton>
       </Card>
 
-      <p className="muted center" style={{ fontSize: 12 }}>TurtWatch · a cozy turtle diary 🐢 · prototype build</p>
+      <p className="muted center" style={{ fontSize: 12 }}>TurtWatch · a cozy turtle diary 🐢</p>
 
       <ConfirmModal
         open={confirmReset}

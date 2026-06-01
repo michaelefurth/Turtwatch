@@ -80,7 +80,7 @@ export function Shop() {
 
       <div className="row wrap gap8">
         {CATS.map((c) => (
-          <button key={c.id} className={`chip ${cat === c.id ? "selected" : "outline"}`} onClick={() => setCat(c.id)}>
+          <button key={c.id} className={`chip ${cat === c.id ? "selected" : "outline"}`} onClick={() => { setCat(c.id); setOwnedOnly(false); }}>
             {c.emoji} {c.label}{countFor(c.id) ? ` ${countFor(c.id)}` : ""}
           </button>
         ))}

@@ -1,0 +1,15 @@
+{
+  "name": "TurtWatch",
+  "short_name": "TurtWatch",
+  "description": "Upload a turtle a day, build your streak, earn Turtbux. A cozy turtle diary.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eafaf0",
+  "theme_color": "#bfe3c6",
+  "categories": ["lifestyle", "health", "productivity"],
+  "icons": [
+    { "src": "/turtle.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
