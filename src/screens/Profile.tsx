@@ -17,6 +17,9 @@ const RARITY_TOTALS: Record<CardRarity, number> = ALL_FACT_CARDS.reduce((m, c) =
   return m;
 }, {} as Record<CardRarity, number>);
 const RARITY_ORDER: CardRarity[] = ["common", "rare", "epic", "legendary"];
+// Stable empty default so the selector never returns a fresh {} (which would make
+// useSyncExternalStore loop forever -> React #185 "max update depth exceeded").
+const EMPTY_COLLECTION: Record<string, number> = {};
 
 export function Profile() {
   const nav = useNavigate();
@@ -28,7 +31,7 @@ export function Profile() {
   const shields = useStore((s) => s.shields);
   const gamesWon = useStore((s) => s.gamesWon ?? 0);
   const mantrasFocused = useStore((s) => s.mantrasFocused ?? 0);
-  const collection = useStore((s) => s.collection ?? {});
+  const collection = useStore((s) => s.collection) ?? EMPTY_COLLECTION;
   const quest = useStore((s) => s.quest);
   const collected = Object.keys(collection).length;
 

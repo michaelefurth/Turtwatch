@@ -18,9 +18,13 @@ const FILTERS: { id: CardRarity | "all"; label: string }[] = [
   { id: "legendary", label: "Legendary ✨" },
 ];
 
+// Stable empty default so the selector never returns a fresh {} every render
+// (which makes useSyncExternalStore loop forever -> React #185).
+const EMPTY_COLLECTION: Record<string, number> = {};
+
 export function FactsLibrary() {
   const { celebrate, toast } = useFeedback();
-  const collection = useStore((s) => s.collection ?? {});
+  const collection = useStore((s) => s.collection) ?? EMPTY_COLLECTION;
   const balance = useStore((s) => s.wallet.balance);
   const lastBoosterOn = useStore((s) => s.lastBoosterOn);
   const openBooster = useStore((s) => s.openBooster);

@@ -38,7 +38,7 @@ export function makeInitialState(): AppState {
     gamesWon: 0,
     mantrasFocused: 0,
     quest: undefined,
-    collection: undefined,
+    collection: {},
     lastBoosterOn: undefined,
     cloud: { autoBackup: false },
   };
