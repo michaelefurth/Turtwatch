@@ -5,7 +5,7 @@ import { economyReconcile, rehydrate, migrateLocalUp } from "@/lib/cloudEconomy"
 import { CloudAuth } from "@/screens/CloudAuth";
 import { Mascot } from "@/components/Mascot";
 
-type Phase = "loading" | "auth" | "ready";
+type Phase = "loading" | "auth" | "ready" | "error";
 
 /**
  * In cloud (server-authoritative) mode, requires login and hydrates the store
@@ -14,21 +14,41 @@ type Phase = "loading" | "auth" | "ready";
  */
 export function CloudGate({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<Phase>(isSupabaseEnabled ? "loading" : "ready");
+  const [errMsg, setErrMsg] = useState("");
   const setup = useRef(false);
 
   useEffect(() => {
     if (!isSupabaseEnabled) return;
-    const sb = getSupabase();
+    // getSupabase() calls createClient(), which throws on a malformed URL/key —
+    // catch it so a bad env var shows an error instead of a blank green screen.
+    let sb: ReturnType<typeof getSupabase>;
+    try {
+      sb = getSupabase();
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : "Could not reach the cloud.");
+      setPhase("error");
+      return;
+    }
     if (!sb) {
       setPhase("ready");
       return;
     }
     let mounted = true;
 
+    // Don't let a hung network leave the user staring at the green loading
+    // screen forever — bail to an error state if hydration takes too long.
+    const watchdog = setTimeout(() => {
+      if (mounted && !setup.current) {
+        setErrMsg("This is taking longer than usual. Check your connection.");
+        setPhase("error");
+      }
+    }, 15000);
+
     const onSession = async (hasSession: boolean) => {
       if (!hasSession) {
         setEconomyReconciler(null);
         setup.current = false;
+        clearTimeout(watchdog);
         if (mounted) setPhase("auth");
         return;
       }
@@ -36,17 +56,39 @@ export function CloudGate({ children }: { children: ReactNode }) {
       setup.current = true;
       setEconomyReconciler(economyReconcile);
       try {
-        await migrateLocalUp(getPersistableState()); // first sign-in: push local data up (no-op if account has data)
-      } catch { /* ignore */ }
-      await rehydrate();
-      if (mounted) setPhase("ready");
+        try {
+          await migrateLocalUp(getPersistableState()); // first sign-in: push local data up (no-op if account has data)
+        } catch { /* migration is best-effort */ }
+        await rehydrate();
+        clearTimeout(watchdog);
+        if (mounted) setPhase("ready");
+      } catch (e) {
+        // hydration failed (schema not applied, RLS, offline…) — surface it
+        // instead of hanging on the loading screen.
+        clearTimeout(watchdog);
+        setup.current = false;
+        setEconomyReconciler(null);
+        if (mounted) {
+          setErrMsg(e instanceof Error ? e.message : "Could not load your pond.");
+          setPhase("error");
+        }
+      }
     };
 
-    sb.auth.getSession().then(({ data }) => onSession(!!data.session));
+    sb.auth.getSession()
+      .then(({ data }) => onSession(!!data.session))
+      .catch((e) => {
+        clearTimeout(watchdog);
+        if (mounted) {
+          setErrMsg(e instanceof Error ? e.message : "Could not reach the cloud.");
+          setPhase("error");
+        }
+      });
     const { data } = sb.auth.onAuthStateChange((_e, session) => onSession(!!session));
     return () => {
       mounted = false;
       setup.current = false; // allow re-setup after a StrictMode remount
+      clearTimeout(watchdog);
       setEconomyReconciler(null);
       data.subscription.unsubscribe();
     };
@@ -81,6 +123,24 @@ export function CloudGate({ children }: { children: ReactNode }) {
         <div className="screen center stack" style={{ alignItems: "center", justifyContent: "center", minHeight: "70vh" }}>
           <Mascot mascot="turtley" mood="happy" size={110} />
           <p className="muted">Loading your pond…</p>
+        </div>
+      </div>
+    );
+  }
+  if (phase === "error") {
+    return (
+      <div className="app">
+        <div className="screen center stack" style={{ alignItems: "center", justifyContent: "center", minHeight: "75vh", textAlign: "center", gap: 14 }} role="alert">
+          <Mascot mascot="turtley" mood="worried" size={110} />
+          <h1 style={{ margin: 0 }}>Couldn't reach the pond</h1>
+          <p className="muted" style={{ marginTop: 0, maxWidth: 320 }}>{errMsg || "Something went wrong connecting to the cloud."}</p>
+          <button className="pill" onClick={() => window.location.reload()}>Try again</button>
+          <button
+            className="pill ghost"
+            onClick={async () => { try { await getSupabase()?.auth.signOut(); } catch { /* ignore */ } window.location.reload(); }}
+          >
+            Sign out
+          </button>
         </div>
       </div>
     );

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { MotionConfig } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { FeedbackProvider } from "@/components/feedback";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CloudGate } from "@/components/CloudGate";
 import { AppShell } from "@/components/AppShell";
 import { Onboarding } from "@/screens/Onboarding";
@@ -33,6 +34,7 @@ function RequireOnboarding({ children }: { children: ReactElement }) {
 export default function App() {
   return (
     <MotionConfig reducedMotion="user">
+      <ErrorBoundary>
       <FeedbackProvider>
         <CloudGate>
         <BrowserRouter>
@@ -65,6 +67,7 @@ export default function App() {
         </BrowserRouter>
         </CloudGate>
       </FeedbackProvider>
+      </ErrorBoundary>
     </MotionConfig>
   );
 }
