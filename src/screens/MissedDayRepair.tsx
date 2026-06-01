@@ -52,7 +52,7 @@ export function MissedDayRepair() {
   const finish = (ok: boolean, reason: string | undefined, emoji: string, msg: string) => {
     setChoice(null);
     if (!ok) { toast(reason ?? "Something went wrong", "😢"); return; }
-    celebrate([emoji, "🐢", "✨"]);
+    celebrate([emoji, "🐢", "✨", "🌱", "💚", "🎉", "🌿"]);
     toast(msg, emoji);
     nav(`/day/${date}`);
   };

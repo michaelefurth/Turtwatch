@@ -6,10 +6,11 @@ import { useFeedback } from "@/components/feedback";
 import { Card, PillButton } from "@/components/common";
 import { shuffledMantras, FOCUS_OPTIONS, MANTRA_REWARD, MANTRA_DAILY_CAP } from "@/logic/mantras";
 import { todayKey } from "@/logic/dates";
+import { pick, MANTRA_DONE } from "@/lib/variety";
 
 export function Mantras() {
   const nav = useNavigate();
-  const { toast } = useFeedback();
+  const { celebrate, toast } = useFeedback();
   const award = useStore((s) => s.awardMantraReward);
   const mantraState = useStore((s) => s.mantra);
 
@@ -46,12 +47,17 @@ export function Mantras() {
     }
     if (doneRef.current) return;
     doneRef.current = true;
+    const next = focused + 1;
     const reward = award(MANTRA_REWARD);
-    toast(reward > 0 ? `+${reward} Turtbux · breathe 🌿` : "Daily focus reward maxed — stay a while 🌿", "🧘");
-    setFocused((f) => f + 1);
+    toast(reward > 0 ? pick(MANTRA_DONE).replace("{n}", String(reward)) : "Daily focus reward maxed — stay a while 🌿", "🧘");
+    if (next === 3 || next === 5 || next === 10 || next % 10 === 0) {
+      celebrate(["🧘", "🌸", "🌿", "✨", "💫", "🪷"]);
+      setTimeout(() => toast(`${next} breaths taken 🌸`, "🌸"), 350);
+    }
+    setFocused(next);
     setIdx((i) => i + 1);
     setRemaining(duration);
-  }, [remaining, award, toast, duration]);
+  }, [remaining, award, toast, celebrate, focused, duration]);
 
   const startPause = () => {
     if (remaining === 0) setRemaining(duration);

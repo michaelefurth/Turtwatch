@@ -10,12 +10,15 @@ import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
 import { equippedAccessory, equippedFrame, equippedSticker, findMemory } from "@/store/selectors";
 import { STICKER_EMOJI } from "@/data/shopItems";
+import { pick, GREETINGS, seasonalHint } from "@/lib/variety";
+
+const tod = () => { const h = new Date().getHours(); return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening"; };
 
 const LINES = {
-  done: ["We did it again! 🎉", "Another turtle in the books! 📚", "Look at us go! 🌟", "Pond duty: complete! ✅"],
-  risk: ["Quick, before midnight! ⏰", "Don't let our streak nap! 🙇", "One photo saves the day! 📸"],
-  lapsed: ["Welcome back — I missed you 💚", "The pond was quiet without you 🌙", "No worries, let's start again 🌱"],
-  idle: ["Ready for today's turtle? 🐢", "What's today's turtle up to? 🌿", "I've been basking, you? ☀️", "Got a turtle for me? 📸"],
+  done: ["We did it again! 🎉", "Another turtle in the books! 📚", "Look at us go! 🌟", "Pond duty: complete! ✅", "Top-tier turtle energy! 🏆", "Shell yeah, a keeper! 🐢", "I am SO proud of you 💚"],
+  risk: ["Quick, before midnight! ⏰", "Don't let our streak nap! 🙇", "One photo saves the day! 📸", "The streak is sleepy — wake it! 🛎️", "Midnight's creeping closer… 🌕"],
+  lapsed: ["Welcome back — I missed you 💚", "The pond was quiet without you 🌙", "No worries, let's start again 🌱", "Every comeback starts with one turtle 🐢", "I kept your lily pad warm 🌸"],
+  idle: ["Ready for today's turtle? 🐢", "What's today's turtle up to? 🌿", "I've been basking, you? ☀️", "Got a turtle for me? 📸", "I saved you the sunniest lily pad 🌸", "Shell we get started? 🐢", `Lovely ${tod()} for a turtle! 🌊`],
 };
 
 function hashStr(s: string): number {
@@ -66,8 +69,11 @@ export function Home() {
     ? "sleepy"
     : "happy";
 
-  const lineSet = todayEntry ? LINES.done : streak.atRisk ? LINES.risk : lapsed ? LINES.lapsed : LINES.idle;
-  const mascotSays = lineSet[hashStr(today) % lineSet.length];
+  const stateKey = todayEntry ? "done" : streak.atRisk ? "risk" : lapsed ? "lapsed" : "idle";
+  // fresh on each visit, stable within a visit
+  const mascotSays = useMemo(() => pick(LINES[stateKey]), [stateKey]);
+  const greeting = useMemo(() => pick(GREETINGS)(profile.displayName), [profile.displayName]);
+  const seasonal = !accessory ? seasonalHint() : null;
   const frame = equippedFrame(inventory) ?? "";
   const sticker = STICKER_EMOJI[equippedSticker(inventory) ?? ""];
   const memory = useMemo(() => (todayEntry ? findMemory(entries, today) : undefined), [entries, today, todayEntry]);
@@ -85,7 +91,7 @@ export function Home() {
     <div className="screen stack">
       <div className="between">
         <div>
-          <h1>Hi, {profile.displayName}! 🌿</h1>
+          <h1>{greeting}</h1>
           <span className="muted" style={{ fontWeight: 700 }}>{prettyDate(today)}</span>
         </div>
         <TurtbuxChip balance={balance} />
@@ -93,8 +99,9 @@ export function Home() {
 
       <Card className="center">
         <div className="speech">{mascotName} says: “{mascotSays}”</div>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 4, position: "relative" }}>
           <Mascot mascot={profile.mascot} mood={mood} accessory={accessory} size={96} wave={lapsed} interactive />
+          {seasonal && <span aria-hidden style={{ position: "absolute", top: -2, right: "32%", fontSize: 20 }}>{seasonal}</span>}
         </div>
         <StreakRing current={streak.current} longest={streak.longest} atRisk={streak.atRisk} />
       </Card>

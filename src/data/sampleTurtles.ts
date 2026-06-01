@@ -42,6 +42,12 @@ export const SAMPLE_TURTLES: SampleTurtle[] = [
   { id: "lilac", label: "Violet", url: svg("#ece4fb", "#c3b3f0", "#8f78d6", "#ffe1a8") },
   { id: "sand", label: "Sandy", url: svg("#fbf0d9", "#ffcf73", "#e6a230", "#9fdcc0") },
   { id: "moss", label: "Mossy", url: svg("#e6f0d9", "#aacf73", "#7fa83f", "#ffd6e0") },
+  { id: "coral", label: "Coral", url: svg("#fce8df", "#f4a07a", "#d4693a", "#9fdcc0") },
+  { id: "sky", label: "Nimbus", url: svg("#e3f2fd", "#90caf9", "#5295c8", "#ffe082") },
+  { id: "lilacberry", label: "Berry", url: svg("#f3e6fb", "#d6a8e8", "#a85fc8", "#ffe1a8") },
+  { id: "teal", label: "Reef", url: svg("#defbf6", "#7fd3c4", "#2f9e8a", "#ffd0c4") },
+  { id: "butter", label: "Buttercup", url: svg("#fdf6dc", "#f5dd72", "#c9a82f", "#bfe3ff") },
+  { id: "rose", label: "Petal", url: svg("#fde8ef", "#f49bb8", "#d45f86", "#bfe7c8") },
 ];
 
 /** Playful placeholder "AI-generated" turtle (used by AI Rescue in the prototype). */

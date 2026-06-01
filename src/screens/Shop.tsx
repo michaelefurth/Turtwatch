@@ -46,7 +46,7 @@ export function Shop() {
     if (!buying) return;
     const r = buyItem(buying.item.id, buying.price);
     if (!r.ok) { toast(r.reason ?? "Couldn't buy that", "😢"); setBuying(null); return; }
-    celebrate(["🪙", buying.item.emoji, "✨"]);
+    celebrate(["🪙", buying.item.emoji, "✨", "🛍️", "🎁", "💛", "🌟", "🎊"]);
     toast(`Got ${buying.item.name}!`, buying.item.emoji);
     setBuying(null);
   };

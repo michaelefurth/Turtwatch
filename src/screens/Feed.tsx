@@ -6,6 +6,7 @@ import { moodEmoji, MOODS } from "@/components/MoodPicker";
 import { prettyDate } from "@/logic/dates";
 import { STICKER_EMOJI } from "@/data/shopItems";
 import { distinctTurtleNames, equippedFrame, equippedSticker } from "@/store/selectors";
+import { pick, EMPTY_DIARY, EMPTY_SEARCH, UNNAMED_TURTLE } from "@/lib/variety";
 import type { Mood } from "@/types";
 
 export function Feed() {
@@ -18,6 +19,10 @@ export function Feed() {
   const [q, setQ] = useState("");
   const [mood, setMood] = useState<Mood | "all">("all");
   const [name, setName] = useState<string>("all");
+
+  const emptyDiary = useMemo(() => pick(EMPTY_DIARY), []);
+  const emptySearch = useMemo(() => pick(EMPTY_SEARCH), []);
+  const unnamed = useMemo(() => pick(UNNAMED_TURTLE), []);
 
   const names = useMemo(() => distinctTurtleNames(entries), [entries]);
 
@@ -69,9 +74,9 @@ export function Feed() {
       )}
 
       {total === 0 ? (
-        <EmptyState emoji="🐢" title="No turtles yet" sub="Upload your first turtle and your diary will fill up here." />
+        <EmptyState {...emptyDiary} />
       ) : list.length === 0 ? (
-        <EmptyState emoji="🔍" title="No matches" sub="Try a different search or filter." />
+        <EmptyState {...emptySearch} />
       ) : (
         <div className="stack">
           {list.map((e) => (
@@ -84,7 +89,7 @@ export function Feed() {
                 )}
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="between">
-                    <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.turtleName || "A lovely turtle"}</b>
+                    <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.turtleName || unnamed}</b>
                     <span aria-hidden>{moodEmoji(e.mood)}</span>
                   </div>
                   <div className="muted" style={{ fontSize: 12 }}>{prettyDate(e.date)}</div>

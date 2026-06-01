@@ -7,6 +7,11 @@ import { Card, PillButton } from "@/components/common";
 import { makeDeck, pickFaces, gameReward, DAILY_GAME_CAP, type FlipCard } from "@/logic/flipgame";
 import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
 import { todayKey } from "@/logic/dates";
+import { pick, CARD_BACKS, GAME_WIN, POOLS } from "@/lib/variety";
+
+const WIN_EMOJI = ["🌸", "🎊", "🌺", "🌟", "🏆", "🥳", "🪷"];
+const WIN_PERFECT = ["Flawless & serene!", "Absolutely immaculate 🌟", "A perfect pond day 🌸", "Shell of a performance!"];
+const WIN_OK = ["Nicely done!", "Lovely matching 🐢", "Pond pairs complete!", "Sweetly solved 🌿"];
 
 const PAIRS = 6; // 12 cards, gentle 3×4 board
 
@@ -21,9 +26,10 @@ export function FlipGame() {
     () => Object.values(entries).map((e) => e.photoUrl).filter((u): u is string => !!u),
     [entries],
   );
-  const samples = useMemo(() => SAMPLE_TURTLES.map((t) => t.url), []);
-
   const [round, setRound] = useState(0);
+  const samples = useMemo(() => [...SAMPLE_TURTLES].sort(() => Math.random() - 0.5).map((t) => t.url), [round]);
+  const cardBack = useMemo(() => pick(CARD_BACKS), [round]);
+
   // Rebuild the board only on a new round — never mid-game (e.g. if a photo is
   // uploaded/deleted in another tab), which would desync the matched state.
   const { deck, ownCount } = useMemo(() => {
@@ -64,8 +70,8 @@ export function FlipGame() {
     awardedRef.current = true;
     setWon(true);
     const reward = award(gameReward(PAIRS, mismatches));
-    celebrate(["🐢", "🪷", "✨", "💚"]);
-    if (reward > 0) toast(`Lovely! +${reward} Turtbux 🪙`, mismatches === 0 ? "🌟" : "🐢");
+    celebrate(mismatches === 0 ? POOLS.perfect : POOLS.game);
+    if (reward > 0) toast(pick(GAME_WIN).replace("{n}", String(reward)), mismatches === 0 ? "🌟" : "🐢");
     else toast("Daily Turtbux maxed — keep playing to relax 🌿", "🧘");
   }, [matched, mismatches, award, celebrate, toast]);
 
@@ -122,7 +128,7 @@ export function FlipGame() {
               transition={{ duration: 0.3 }}
               style={{ transformStyle: "preserve-3d" }}
             >
-              <span className="flip-back" aria-hidden>🪷</span>
+              <span className="flip-back" aria-hidden>{cardBack}</span>
               <span className="flip-front" aria-hidden style={{ transform: "rotateY(180deg)" }}>
                 <img src={c.image} alt="" />
               </span>
@@ -139,8 +145,8 @@ export function FlipGame() {
 
       {won ? (
         <Card className="center">
-          <div style={{ fontSize: 40 }}>🌸</div>
-          <h2 style={{ margin: "4px 0" }}>{mismatches === 0 ? "Flawless & serene!" : "Nicely done!"}</h2>
+          <div style={{ fontSize: 40 }}>{pick(WIN_EMOJI)}</div>
+          <h2 style={{ margin: "4px 0" }}>{pick(mismatches === 0 ? WIN_PERFECT : WIN_OK)}</h2>
           <p className="muted" style={{ marginTop: 0 }}>Matched all {PAIRS} pairs in {PAIRS + mismatches} flips.</p>
           <PillButton onClick={newGame}>Play again 🎴</PillButton>
         </Card>
