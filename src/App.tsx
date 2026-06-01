@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { MotionConfig } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { FeedbackProvider } from "@/components/feedback";
+import { CloudGate } from "@/components/CloudGate";
 import { AppShell } from "@/components/AppShell";
 import { Onboarding } from "@/screens/Onboarding";
 import { Home } from "@/screens/Home";
@@ -33,6 +34,7 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <FeedbackProvider>
+        <CloudGate>
         <BrowserRouter>
         <Routes>
           <Route path="/onboarding" element={<Onboarding />} />
@@ -61,6 +63,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </CloudGate>
       </FeedbackProvider>
     </MotionConfig>
   );

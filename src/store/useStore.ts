@@ -39,6 +39,18 @@ const nowIso = () => new Date().toISOString();
 let hydrating = false;
 export const isHydrating = () => hydrating;
 
+// In cloud (server-authoritative) mode, an economy reconciler is registered: after
+// each optimistic local mutation the store calls it so the server recomputes the
+// reward and the authoritative wallet/state is patched back. Null in local mode.
+export type EconomyKind =
+  | "upload" | "repair" | "ai_rescue" | "shield" | "purchase" | "booster"
+  | "login" | "fact_of_day" | "minigame" | "mantra" | "toggle_task" | "add_task" | "remove_task";
+let reconciler: ((kind: EconomyKind, payload: unknown) => void) | null = null;
+export function setEconomyReconciler(fn: ((kind: EconomyKind, payload: unknown) => void) | null) {
+  reconciler = fn;
+}
+export const isCloudMode = () => reconciler !== null;
+
 export interface EntryDraft {
   photoUrl?: string;
   photoSource?: PhotoSource;
@@ -82,6 +94,7 @@ interface Actions {
   markReminderFired: () => void;
   setCloud: (patch: Partial<NonNullable<AppState["cloud"]>>) => void;
   hydrateState: (state: AppState) => void;
+  applyServerWallet: (w: { balance: number; lifetimeEarned?: number; lifetimeSpent?: number }) => void;
   reset: () => void;
 }
 
@@ -190,6 +203,7 @@ export const useStore = create<Store>((set, get) => {
       const next: AppState = { ...s, entries, ...money };
       const { achievements, newAchievements } = evaluate(next);
       commit({ entries, ...money, achievements });
+      reconciler?.("upload", { date, draft });
       return { ...reward, newAchievements };
     },
 
@@ -270,6 +284,7 @@ export const useStore = create<Store>((set, get) => {
       const money = applyDelta(s, -REPAIR_COST, "repair", "entry", date);
       const { achievements } = evaluate({ ...s, entries, ...money });
       commit({ entries, ...money, achievements });
+      reconciler?.("repair", { date, draft });
       return { ok: true };
     },
 
@@ -288,6 +303,7 @@ export const useStore = create<Store>((set, get) => {
       const money = applyDelta(s, -AI_RESCUE_COST, "ai_rescue", "entry", date);
       const { achievements } = evaluate({ ...s, entries, ...money });
       commit({ entries, ...money, achievements });
+      reconciler?.("ai_rescue", { date, photoUrl: entries[date].photoUrl });
       return { ok: true };
     },
 
@@ -303,6 +319,7 @@ export const useStore = create<Store>((set, get) => {
       entries[date] = makeRecoveryEntry(date, "shielded", { tags: ["shielded"] });
       const { achievements } = evaluate({ ...s, entries, shields });
       commit({ entries, shields, achievements });
+      reconciler?.("shield", { date });
       return { ok: true };
     },
 
@@ -357,6 +374,7 @@ export const useStore = create<Store>((set, get) => {
         const shields = [...s.shields, ...newShields];
         const money = applyDelta(s, -price, "shield_buy", "shield");
         commit({ shields, ...money });
+        reconciler?.("purchase", { itemId });
         return { ok: true };
       }
       if (!item.consumable && s.inventory[itemId]) return { ok: false, reason: "Already owned." };
@@ -365,6 +383,7 @@ export const useStore = create<Store>((set, get) => {
       const money = applyDelta(s, -price, "shop_purchase", "shopItem", itemId);
       const { achievements } = evaluate({ ...s, inventory, ...money });
       commit({ inventory, ...money, achievements });
+      reconciler?.("purchase", { itemId });
       return { ok: true };
     },
 
@@ -407,6 +426,7 @@ export const useStore = create<Store>((set, get) => {
       if (s.factOfDayClaimedOn === today) return 0;
       const money = applyDelta(s, FACT_OF_DAY, "fact_of_day");
       commit({ factOfDayClaimedOn: today, ...money });
+      reconciler?.("fact_of_day", {});
       return FACT_OF_DAY;
     },
 
@@ -417,6 +437,7 @@ export const useStore = create<Store>((set, get) => {
       const total = loginBonus(computeStreak(s.entries).current);
       const money = applyDelta(s, total, "daily_login");
       commit({ loginBonusClaimedOn: today, ...money });
+      reconciler?.("login", {});
       return total;
     },
 
@@ -441,6 +462,7 @@ export const useStore = create<Store>((set, get) => {
       const game = { date: today, earned: banked };
       const { achievements } = evaluate({ ...s, gamesWon, game, ...money });
       commit({ gamesWon, game, achievements, ...money });
+      reconciler?.("minigame", { amount: total });
       return total;
     },
 
@@ -464,6 +486,7 @@ export const useStore = create<Store>((set, get) => {
       const mantra = { date: today, earned: banked };
       const { achievements } = evaluate({ ...s, mantrasFocused, mantra, ...money });
       commit({ mantrasFocused, mantra, achievements, ...money });
+      reconciler?.("mantra", { amount: total });
       return total;
     },
 
@@ -482,6 +505,7 @@ export const useStore = create<Store>((set, get) => {
       const q = withDailyReset(s.quest ?? makeQuest(today), today);
       const task = { id: uid(), title: t.slice(0, 80), done: false, createdAt: nowIso() };
       commit({ quest: { ...q, tasks: [...q.tasks, task] } });
+      reconciler?.("add_task", { title: t });
     },
 
     removeTask: (id) => {
@@ -489,6 +513,7 @@ export const useStore = create<Store>((set, get) => {
       if (!s.quest) return;
       const base = withDailyReset(s.quest, todayKey());
       commit({ quest: { ...base, tasks: base.tasks.filter((t) => t.id !== id) } });
+      reconciler?.("remove_task", { id });
     },
 
     toggleTask: (id) => {
@@ -540,6 +565,7 @@ export const useStore = create<Store>((set, get) => {
       const money = rewarded > 0 ? applyDelta(s, rewarded, "task", "quest") : {};
       const { achievements } = evaluate({ ...s, quest, ...money });
       commit({ quest, achievements, ...money });
+      reconciler?.("toggle_task", { id });
       return { rewarded, arrived, stepped: true };
     },
 
@@ -568,6 +594,7 @@ export const useStore = create<Store>((set, get) => {
       if (!paid) patch.lastBoosterOn = today;
       const { achievements } = evaluate({ ...s, collection, ...money });
       commit({ ...patch, achievements });
+      reconciler?.("booster", { paid });
       return { ok: true, cards, rewarded };
     },
 
@@ -583,6 +610,18 @@ export const useStore = create<Store>((set, get) => {
       saveState(state);
       set(state as never);
       hydrating = false;
+    },
+
+    // cloud mode: overwrite the wallet with the server's authoritative balance
+    applyServerWallet: (w) => {
+      const cur = get().wallet;
+      commit({
+        wallet: {
+          balance: w.balance,
+          lifetimeEarned: w.lifetimeEarned ?? cur.lifetimeEarned,
+          lifetimeSpent: w.lifetimeSpent ?? cur.lifetimeSpent,
+        },
+      });
     },
 
     reset: () => {
