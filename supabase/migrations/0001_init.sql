@@ -13,7 +13,7 @@ create type ledger_reason_t as enum
   ('upload','streak_bonus','milestone','note_bonus','meta_bonus','challenge',
    'fact_read','fact_of_day','repair','ai_rescue','shield_buy','shop_purchase',
    'onboarding_gift','minigame','mantra','task','daily_login',
-   'lucky_upload','lucky_game','lucky_mantra','refund','admin');
+   'lucky_upload','lucky_game','lucky_mantra','booster','refund','admin');
 create type shield_status_t as enum ('available','used');
 create type fact_category_t as enum ('biology','history','record','silly','care');
 create type rarity_t        as enum ('common','rare','legendary');

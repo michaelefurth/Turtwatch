@@ -6,7 +6,7 @@ import { Card, formatNum } from "@/components/common";
 import { computeStreak } from "@/logic/streak";
 import { rankFor } from "@/logic/ranks";
 import { ACHIEVEMENTS } from "@/data/achievements";
-import { FACTS } from "@/data/facts";
+import { TOTAL_CARDS } from "@/logic/booster";
 import { equippedAccessory, totalTurtles } from "@/store/selectors";
 
 export function Profile() {
@@ -15,11 +15,11 @@ export function Profile() {
   const wallet = useStore((s) => s.wallet);
   const entries = useStore((s) => s.entries);
   const inventory = useStore((s) => s.inventory);
-  const factsRead = useStore((s) => s.factsRead);
   const achievements = useStore((s) => s.achievements);
   const shields = useStore((s) => s.shields);
   const gamesWon = useStore((s) => s.gamesWon ?? 0);
   const mantrasFocused = useStore((s) => s.mantrasFocused ?? 0);
+  const collected = useStore((s) => Object.keys(s.collection ?? {}).length);
 
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const total = totalTurtles(entries);
@@ -35,7 +35,7 @@ export function Profile() {
     { label: "Turtles", value: total, emoji: "🐢" },
     { label: "Current streak", value: streak.current, emoji: "🔥" },
     { label: "Longest streak", value: streak.longest, emoji: "🏆" },
-    { label: "Facts read", value: `${Object.keys(factsRead).length}/${FACTS.length}`, emoji: "📖" },
+    { label: "Cards collected", value: `${collected}/${TOTAL_CARDS}`, emoji: "🃏" },
     { label: "Days repaired", value: repaired, emoji: "🩹" },
     { label: "AI rescued", value: rescued, emoji: "✨" },
     { label: "Shields used", value: shieldedUsed, emoji: "🛡️" },

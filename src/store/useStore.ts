@@ -22,6 +22,8 @@ import {
   makeQuest, withDailyReset, remainingTaskReward, nextStreak, arrivalLandmark,
   reachedCount, TASK_REWARD, LEG_BONUS, type Landmark,
 } from "@/logic/quest";
+import { pullBooster, cardReward, BOOSTER_COST } from "@/logic/booster";
+import type { FactCardDef } from "@/data/factCards";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
 import { generateAiTurtle } from "@/data/sampleTurtles";
@@ -69,6 +71,7 @@ interface Actions {
   addTask: (title: string) => void;
   removeTask: (id: string) => void;
   toggleTask: (id: string) => { rewarded: number; arrived: Landmark | null };
+  openBooster: (paid: boolean) => { ok: boolean; reason?: string; cards?: { card: FactCardDef; isNew: boolean }[]; rewarded?: number };
   updateNotifications: (n: Partial<NotificationSettings>) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
   markReminderFired: () => void;
@@ -524,6 +527,34 @@ export const useStore = create<Store>((set, get) => {
       return { rewarded, arrived };
     },
 
+    openBooster: (paid) => {
+      const s = get();
+      const today = todayKey();
+      const freeAvailable = s.lastBoosterOn !== today;
+      if (!paid && !freeAvailable) return { ok: false, reason: "Your free booster is tomorrow!" };
+      if (paid && s.wallet.balance < BOOSTER_COST) return { ok: false, reason: "Not enough Turtbux." };
+
+      // pay for an extra pack (free pack consumes the daily slot instead)
+      let money = paid ? applyDelta(s, -BOOSTER_COST, "booster", "booster") : {};
+
+      const pulled = pullBooster();
+      const collection = { ...(s.collection ?? {}) };
+      let rewarded = 0;
+      const cards = pulled.map((card) => {
+        const isNew = !collection[card.id];
+        collection[card.id] = (collection[card.id] ?? 0) + 1;
+        rewarded += cardReward(card.rarity, isNew);
+        return { card, isNew };
+      });
+
+      if (rewarded > 0) money = applyDelta({ ...s, ...money }, rewarded, "booster", "booster");
+      const patch: Partial<AppState> = { collection, ...money };
+      if (!paid) patch.lastBoosterOn = today;
+      const { achievements } = evaluate({ ...s, collection, ...money });
+      commit({ ...patch, achievements });
+      return { ok: true, cards, rewarded };
+    },
+
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
     markReminderFired: () => commit({ lastReminderOn: todayKey() }),
@@ -600,8 +631,10 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
   if (entries.some((e) => e.state === "repaired")) earn("first_repair");
   if (entries.some((e) => e.state === "shielded")) earn("first_shield");
   if (entries.some((e) => e.state === "ai_rescued")) earn("first_rescue");
-  if (factsRead >= 5) earn("facts_5");
-  if (factsRead >= FACTS.length) earn("facts_all");
+  const collected = Object.keys(s.collection ?? {}).length;
+  if (factsRead >= 5 || collected >= 5) earn("facts_5");
+  if (collected >= 100) earn("facts_all");
+  if (Object.keys(s.collection ?? {}).some((id) => id.startsWith("r-"))) earn("fact_collector");
   if (owned >= 1) earn("shopper");
   if (s.wallet.lifetimeEarned >= 1500) earn("rich");
   if (equippedCats.has("theme") && equippedCats.has("frame") && equippedCats.has("mascot_accessory"))
@@ -624,12 +657,12 @@ function stripState(s: Store): AppState {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
-    gamesWon, mantrasFocused, quest, cloud,
+    gamesWon, mantrasFocused, quest, collection, lastBoosterOn, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
-    gamesWon, mantrasFocused, quest, cloud,
+    gamesWon, mantrasFocused, quest, collection, lastBoosterOn, cloud,
   };
 }

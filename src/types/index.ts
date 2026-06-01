@@ -33,6 +33,7 @@ export type LedgerReason =
   | "lucky_upload"
   | "lucky_game"
   | "lucky_mantra"
+  | "booster"
   | "refund"
   | "admin";
 
@@ -189,6 +190,9 @@ export interface AppState {
   mantrasFocused?: number;
   /** Turtle Trek — daily goals that move a turtle along a journey */
   quest?: QuestState;
+  /** Collectible fact cards: cardId -> copies owned */
+  collection?: Record<string, number>;
+  lastBoosterOn?: string; // date key the free daily booster was opened
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }

@@ -294,6 +294,17 @@ label.field { display: block; font-weight: 700; font-size: 13px; margin: 0 0 6px
 .task-done { text-decoration: line-through; color: var(--muted); }
 .task-del { flex-shrink: 0; border: none; background: transparent; color: var(--muted); font-size: 14px; padding: 4px 6px; }
 
+/* ---------- collectible fact cards ---------- */
+.card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.collect-card {
+  position: relative; aspect-ratio: 0.82; border: none; border-radius: 14px; padding: 6px 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  box-shadow: var(--hairline), var(--shadow-sm); cursor: pointer;
+}
+.collect-rarity { font-size: 9px; font-weight: 800; letter-spacing: 0.01em; }
+.collect-count { position: absolute; top: 4px; right: 5px; font-size: 10px; font-weight: 900; color: var(--primary-deep); background: var(--surface); border-radius: 999px; padding: 0 5px; box-shadow: var(--shadow-sm); }
+.reveal-card { width: 84px; border-radius: 16px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; gap: 5px; box-shadow: var(--shadow-sm); }
+
 .legend { display: flex; flex-wrap: wrap; gap: 8px; }
 .legend .badge { background: var(--surface); box-shadow: var(--shadow-sm); }
 .sw { width: 14px; height: 14px; border-radius: 5px; display: inline-block; }

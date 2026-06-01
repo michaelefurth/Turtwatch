@@ -59,6 +59,28 @@ describe("store: mini-game & mantra rewards", () => {
   });
 });
 
+describe("store: booster packs", () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it("opens a free pack once per day, collecting 3 cards", () => {
+    const r = useStore.getState().openBooster(false);
+    expect(r.ok).toBe(true);
+    expect(r.cards).toHaveLength(3);
+    expect(Object.keys(useStore.getState().collection ?? {}).length).toBeGreaterThanOrEqual(1);
+    // free pack consumed for today
+    expect(useStore.getState().openBooster(false).ok).toBe(false);
+  });
+
+  it("can buy an extra pack with Turtbux", () => {
+    useStore.getState().completeOnboarding({}); // +50 Turtbux
+    const before = useStore.getState().wallet.balance;
+    const r = useStore.getState().openBooster(true);
+    expect(r.ok).toBe(true);
+    // spent 40, then gained the pack reward
+    expect(useStore.getState().wallet.balance).toBe(before - 40 + (r.rewarded ?? 0));
+  });
+});
+
 describe("store: daily login bonus", () => {
   beforeEach(() => useStore.getState().reset());
 
