@@ -90,10 +90,10 @@ export async function loadCloudState(): Promise<AppState | null> {
     ...base,
     onboarded: true,
     factsRead,
-    // stat counters have no server column yet — preserve the on-device value so
-    // achievements (first flip, zen master…) aren't reset to 0 on every rehydrate.
-    gamesWon: prev.gamesWon ?? 0,
-    mantrasFocused: prev.mantrasFocused ?? 0,
+    // stat counters: take the higher of the server total and this device's value
+    // so neither a fresh device nor an offline session loses progress.
+    gamesWon: Math.max(prev.gamesWon ?? 0, (u as { game_won?: number }).game_won ?? 0),
+    mantrasFocused: Math.max(prev.mantrasFocused ?? 0, (u as { mantra_focused?: number }).mantra_focused ?? 0),
     profile: {
       displayName: (u as { display_name?: string }).display_name ?? "Pond Keeper",
       mascot: ((u as { mascot?: "turtley" | "shelldon" }).mascot ?? "turtley"),
@@ -187,8 +187,25 @@ async function reconcileOne(kind: EconomyKind, payload: unknown): Promise<void> 
     switch (kind) {
       case "upload": {
         const photo = await cloudPersistPhoto(`${uidv}/${p.date}`, (p.draft as { photoUrl?: string })?.photoUrl);
-        const d = p.draft as { turtleName?: string; mood?: string; notes?: string; tags?: string[]; location?: { label?: string } };
-        const { data, error } = await sb.rpc("srv_upload", { p_date: p.date, p_photo: photo ?? null, p_name: d.turtleName ?? null, p_mood: d.mood ?? null, p_notes: d.notes ?? null, p_tags: d.tags ?? [], p_loc: d.location?.label ?? null });
+        const d = p.draft as { turtleName?: string; mood?: string; notes?: string; tags?: string[]; location?: { label?: string }; photoSource?: string };
+        const { data, error } = await sb.rpc("srv_upload", { p_date: p.date, p_photo: photo ?? null, p_name: d.turtleName ?? null, p_mood: d.mood ?? null, p_notes: d.notes ?? null, p_tags: d.tags ?? [], p_loc: d.location?.label ?? null, p_source: d.photoSource ?? "library" });
+        if (error) throw error;
+        balance = (data as { balance?: number })?.balance;
+        break;
+      }
+      case "delete_entry": {
+        const { data, error } = await sb.rpc("srv_delete_entry", { p_date: p.date });
+        if (error) throw error;
+        balance = (data as { balance?: number })?.balance;
+        break;
+      }
+      case "update_entry": {
+        const d = p.draft as { photoUrl?: string; turtleName?: string; mood?: string; notes?: string; tags?: string[]; location?: { label?: string } };
+        if (isDataUrl(d.photoUrl)) {
+          const photo = await cloudPersistPhoto(`${uidv}/${p.date}`, d.photoUrl);
+          if (photo) await sb.from("turtle_entry").update({ photo_url: photo }).eq("user_id", uidv).eq("entry_date", p.date);
+        }
+        const { data, error } = await sb.rpc("srv_update_entry", { p_date: p.date, p_name: d.turtleName ?? null, p_mood: d.mood ?? null, p_notes: d.notes ?? null, p_tags: d.tags ?? [], p_loc: d.location?.label ?? null });
         if (error) throw error;
         balance = (data as { balance?: number })?.balance;
         break;

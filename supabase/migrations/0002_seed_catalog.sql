@@ -56,6 +56,7 @@ on conflict (id) do update set
   price = excluded.price, emoji = excluded.emoji, consumable = excluded.consumable, theme = excluded.theme;
 
 -- ---------------- achievements ----------------
+-- mirrors src/data/achievements.ts (kept in sync)
 insert into achievement (id, title, description, emoji) values
   ('first_turtle','First Turtle!','Upload your very first turtle.','🐢'),
   ('streak_7','Week of Turtles','Reach a 7-day streak.','📅'),
@@ -64,10 +65,19 @@ insert into achievement (id, title, description, emoji) values
   ('first_repair','Handy Helper','Repair a missed day.','🩹'),
   ('first_shield','Shell Guardian','Use a Shell Shield.','🛡️'),
   ('first_rescue','AI Whisperer','Use AI Turtle Rescue.','✨'),
-  ('facts_5','Curious Turtle','Read 5 turtle facts.','📖'),
-  ('facts_all','Turtle Scholar','Read every turtle fact.','🎓'),
+  ('facts_5','Curious Turtle','Collect 5 fact cards.','📖'),
+  ('facts_all','Turtle Scholar','Collect 100 fact cards.','🎓'),
+  ('pondex','Complete Pondex','Collect every fact card.','🏅'),
+  ('fact_collector','Real-Deal Collector','Collect a genuine turtle-fact card.','🃏'),
   ('shopper','Pond Shopper','Buy your first shop item.','🛍️'),
-  ('rich','Turtbux Tycoon','Earn 500 Turtbux in total.','🪙'),
-  ('decorator','Cozy Decorator','Equip a theme, frame, and accessory.','🎨')
+  ('rich','Turtbux Tycoon','Earn 1,500 Turtbux in total.','🪙'),
+  ('decorator','Cozy Decorator','Equip a theme, frame, and accessory.','🎨'),
+  ('first_flip','Flip Friend','Win your first Turtle Flip game.','🎴'),
+  ('flip_master','Flip Master','Win 10 Turtle Flip games.','🃏'),
+  ('first_mantra','Deep Breath','Complete your first mantra focus.','🧘'),
+  ('zen_master','Pond Zen','Complete 25 mantra focuses.','🌸'),
+  ('first_task','Goal Starter','Complete your first daily goal.','✅'),
+  ('goal_getter','Goal Getter','Reach a 7-day goal streak.','🎯'),
+  ('globetrotter','Globetrotter','Reach 10 places on your trek.','🗺️')
 on conflict (id) do update set
   title = excluded.title, description = excluded.description, emoji = excluded.emoji;

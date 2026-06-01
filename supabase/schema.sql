@@ -498,6 +498,7 @@ on conflict (id) do update set
   price = excluded.price, emoji = excluded.emoji, consumable = excluded.consumable, theme = excluded.theme;
 
 -- ---------------- achievements ----------------
+-- mirrors src/data/achievements.ts (kept in sync)
 insert into achievement (id, title, description, emoji) values
   ('first_turtle','First Turtle!','Upload your very first turtle.','🐢'),
   ('streak_7','Week of Turtles','Reach a 7-day streak.','📅'),
@@ -506,11 +507,20 @@ insert into achievement (id, title, description, emoji) values
   ('first_repair','Handy Helper','Repair a missed day.','🩹'),
   ('first_shield','Shell Guardian','Use a Shell Shield.','🛡️'),
   ('first_rescue','AI Whisperer','Use AI Turtle Rescue.','✨'),
-  ('facts_5','Curious Turtle','Read 5 turtle facts.','📖'),
-  ('facts_all','Turtle Scholar','Read every turtle fact.','🎓'),
+  ('facts_5','Curious Turtle','Collect 5 fact cards.','📖'),
+  ('facts_all','Turtle Scholar','Collect 100 fact cards.','🎓'),
+  ('pondex','Complete Pondex','Collect every fact card.','🏅'),
+  ('fact_collector','Real-Deal Collector','Collect a genuine turtle-fact card.','🃏'),
   ('shopper','Pond Shopper','Buy your first shop item.','🛍️'),
-  ('rich','Turtbux Tycoon','Earn 500 Turtbux in total.','🪙'),
-  ('decorator','Cozy Decorator','Equip a theme, frame, and accessory.','🎨')
+  ('rich','Turtbux Tycoon','Earn 1,500 Turtbux in total.','🪙'),
+  ('decorator','Cozy Decorator','Equip a theme, frame, and accessory.','🎨'),
+  ('first_flip','Flip Friend','Win your first Turtle Flip game.','🎴'),
+  ('flip_master','Flip Master','Win 10 Turtle Flip games.','🃏'),
+  ('first_mantra','Deep Breath','Complete your first mantra focus.','🧘'),
+  ('zen_master','Pond Zen','Complete 25 mantra focuses.','🌸'),
+  ('first_task','Goal Starter','Complete your first daily goal.','✅'),
+  ('goal_getter','Goal Getter','Reach a 7-day goal streak.','🎯'),
+  ('globetrotter','Globetrotter','Reach 10 places on your trek.','🗺️')
 on conflict (id) do update set
   title = excluded.title, description = excluded.description, emoji = excluded.emoji;
 
@@ -583,6 +593,9 @@ alter table app_user add column if not exists trek_last_date date;
 alter table app_user add column if not exists task_date date;
 alter table app_user add column if not exists task_earned integer not null default 0;
 alter table app_user add column if not exists task_steps_today integer not null default 0;
+-- lifetime side-game counters (drive Profile stats + flip/mantra achievements)
+alter table app_user add column if not exists game_won integer not null default 0;
+alter table app_user add column if not exists mantra_focused integer not null default 0;
 
 create table if not exists task_item (
   id          uuid primary key default gen_random_uuid(),
@@ -626,9 +639,12 @@ create or replace function milestone_bonus(p_streak integer) returns integer lan
 $$;
 
 -- ---------- uploads ----------
+-- old signature replaced: p_source added (camera/library/sample), so drop first
+-- to avoid an ambiguous overload.
+drop function if exists srv_upload(date, text, text, mood_t, text, text[], text);
 create or replace function srv_upload(
   p_date date, p_photo text, p_name text, p_mood mood_t,
-  p_notes text, p_tags text[], p_loc text
+  p_notes text, p_tags text[], p_loc text, p_source photo_source_t default 'library'
 ) returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_user uuid := auth.uid();
@@ -641,7 +657,7 @@ begin
 
   -- the AFTER INSERT trigger recomputes the streak; then read it for the reward
   insert into turtle_entry (user_id, entry_date, state, photo_url, photo_source, turtle_name, mood, notes, tags, location_label, bonus_note, bonus_meta)
-  values (v_user, p_date, 'completed', p_photo, 'library', p_name, p_mood, p_notes, coalesce(p_tags, '{}'), p_loc, v_note, v_meta)
+  values (v_user, p_date, 'completed', p_photo, coalesce(p_source, 'library'), p_name, p_mood, p_notes, coalesce(p_tags, '{}'), p_loc, v_note, v_meta)
   returning id into v_entry;
 
   select current into v_streak from streak where user_id = v_user;
@@ -726,7 +742,7 @@ begin
   select case when game_date = p_date then game_earned else 0 end into v_earned from app_user where id = v_user for update;
   v_award := greatest(0, least(coalesce(p_amount, 0), 20 - v_earned)); -- cap 20/day; ignore inflated client amounts
   if v_award > 0 then v_balance := apply_turtbux(v_award, 'minigame', 'flipgame', null, null); end if;
-  update app_user set game_date = p_date, game_earned = v_earned + v_award where id = v_user;
+  update app_user set game_date = p_date, game_earned = v_earned + v_award, game_won = game_won + 1 where id = v_user;
   return jsonb_build_object('awarded', v_award, 'balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
 end $$;
 
@@ -738,7 +754,7 @@ begin
   select case when mantra_date = p_date then mantra_earned else 0 end into v_earned from app_user where id = v_user for update;
   v_award := greatest(0, least(coalesce(p_amount, 0), 20 - v_earned));
   if v_award > 0 then v_balance := apply_turtbux(v_award, 'mantra', 'mantra', null, null); end if;
-  update app_user set mantra_date = p_date, mantra_earned = v_earned + v_award where id = v_user;
+  update app_user set mantra_date = p_date, mantra_earned = v_earned + v_award, mantra_focused = mantra_focused + 1 where id = v_user;
   return jsonb_build_object('awarded', v_award, 'balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
 end $$;
 
@@ -885,13 +901,71 @@ begin
     end if;
   end loop;
 
+  -- bring across daily-goal tasks so the trek isn't empty after first sign-in
+  for rec in select * from jsonb_array_elements(coalesce(p_state->'quest'->'tasks', '[]'::jsonb)) loop
+    insert into task_item (user_id, title, done, last_done)
+    values (v_user, rec.value->>'title', coalesce((rec.value->>'done')::boolean, false),
+            nullif(rec.value->>'lastDoneDate','')::date);
+  end loop;
+
   update app_user set
     trek_steps = coalesce((p_state->'quest'->>'steps')::int, 0),
     trek_streak = coalesce((p_state->'quest'->>'streakCurrent')::int, 0),
-    trek_longest = coalesce((p_state->'quest'->>'streakLongest')::int, 0)
+    trek_longest = coalesce((p_state->'quest'->>'streakLongest')::int, 0),
+    game_won = coalesce((p_state->>'gamesWon')::int, 0),
+    mantra_focused = coalesce((p_state->>'mantrasFocused')::int, 0)
   where id = v_user;
 
   return jsonb_build_object('imported', true);
+end $$;
+
+-- ---------- entry edit / delete (server-authoritative) ----------
+-- Delete an entry, reverse its Turtbux (clamped to keep balance >= 0), restore a
+-- shield that was spent on it, and recompute the streak.
+create or replace function srv_delete_entry(p_date date) returns jsonb
+  language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_entry turtle_entry; v_reverse int; v_balance int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  select * into v_entry from turtle_entry where user_id = v_user and entry_date = p_date;
+  if not found then return jsonb_build_object('skipped', true, 'balance', (select balance from wallet where user_id = v_user)); end if;
+
+  if v_entry.state = 'shielded' then
+    update shell_shield set status = 'available', used_on_date = null
+      where id = (select id from shell_shield where user_id = v_user and status = 'used' and used_on_date = p_date limit 1);
+  end if;
+
+  delete from turtle_entry where id = v_entry.id;
+  perform recompute_streak(v_user);
+
+  v_reverse := least(coalesce(v_entry.earned_turtbux, 0), (select balance from wallet where user_id = v_user));
+  if v_reverse > 0 then v_balance := apply_turtbux(-v_reverse, 'refund', 'entry', p_date::text, null); end if;
+  return jsonb_build_object('balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
+end $$;
+
+-- Edit an entry's fields; award the one-time note/meta bonus if newly satisfied.
+create or replace function srv_update_entry(
+  p_date date, p_name text, p_mood mood_t, p_notes text, p_tags text[], p_loc text
+) returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_user uuid := auth.uid(); v_entry turtle_entry; v_note bool; v_meta bool; v_delta int := 0; v_balance int;
+begin
+  if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
+  select * into v_entry from turtle_entry where user_id = v_user and entry_date = p_date;
+  if not found then raise exception 'NO_ENTRY'; end if;
+  v_note := coalesce(length(btrim(p_notes)), 0) >= 10;
+  v_meta := p_mood is not null and coalesce(array_length(p_tags, 1), 0) > 0;
+  if v_note and not v_entry.bonus_note then v_delta := v_delta + 3; end if;
+  if v_meta and not v_entry.bonus_meta then v_delta := v_delta + 2; end if;
+
+  update turtle_entry set
+    turtle_name = p_name, mood = p_mood, notes = p_notes,
+    tags = coalesce(p_tags, '{}'), location_label = p_loc,
+    bonus_note = (v_note or bonus_note), bonus_meta = (v_meta or bonus_meta),
+    earned_turtbux = earned_turtbux + v_delta, updated_at = now()
+    where id = v_entry.id;
+
+  if v_delta > 0 then v_balance := apply_turtbux(v_delta, 'note_bonus', 'entry', p_date::text, null); end if;
+  return jsonb_build_object('rewarded', v_delta, 'balance', coalesce(v_balance, (select balance from wallet where user_id = v_user)));
 end $$;
 
 -- ---------- privilege lockdown ----------
@@ -903,8 +977,9 @@ revoke execute on function recompute_streak(uuid) from public, authenticated, an
 
 -- Clients call only the validated, server-authoritative surface.
 grant execute on function
-  srv_upload(date, text, text, mood_t, text, text[], text),
+  srv_upload(date, text, text, mood_t, text, text[], text, photo_source_t),
   srv_repair(date, text), srv_ai_rescue(date, text),
+  srv_delete_entry(date), srv_update_entry(date, text, mood_t, text, text[], text),
   srv_login_bonus(date), srv_fact_of_day(date),
   srv_minigame(date, integer), srv_mantra(date, integer),
   srv_toggle_task(uuid, date), srv_open_booster(boolean, date),

@@ -43,7 +43,7 @@ export const isHydrating = () => hydrating;
 // each optimistic local mutation the store calls it so the server recomputes the
 // reward and the authoritative wallet/state is patched back. Null in local mode.
 export type EconomyKind =
-  | "upload" | "repair" | "ai_rescue" | "shield" | "purchase" | "booster"
+  | "upload" | "update_entry" | "delete_entry" | "repair" | "ai_rescue" | "shield" | "purchase" | "booster"
   | "login" | "fact_of_day" | "fact_read" | "minigame" | "mantra" | "toggle_task" | "add_task" | "remove_task";
 let reconciler: ((kind: EconomyKind, payload: unknown) => void) | null = null;
 export function setEconomyReconciler(fn: ((kind: EconomyKind, payload: unknown) => void) | null) {
@@ -243,6 +243,7 @@ export const useStore = create<Store>((set, get) => {
       const money = delta > 0 ? applyDelta(s, delta, "note_bonus", "entry", date) : {};
       const { achievements, newAchievements } = evaluate({ ...s, entries, ...money });
       commit({ entries, ...money, achievements });
+      reconciler?.("update_entry", { date, draft });
       return { total: delta, parts, newAchievements };
     },
 
@@ -269,6 +270,7 @@ export const useStore = create<Store>((set, get) => {
       const reverse = Math.min(entry.earnedTurtbux, s.wallet.balance);
       const money = reverse > 0 ? applyDelta(s, -reverse, "refund", "entry", date) : {};
       commit({ entries, shields, ...money });
+      reconciler?.("delete_entry", { date });
     },
 
     repairDay: (date, draft) => {
