@@ -73,7 +73,11 @@ describe("store: booster packs", () => {
   });
 
   it("can buy an extra pack with Turtbux", () => {
-    useStore.setState({ wallet: { balance: 100, lifetimeEarned: 100, lifetimeSpent: 0 } });
+    // seed wallet AND a matching ledger entry so the balance===Σdeltas invariant holds
+    useStore.setState({
+      wallet: { balance: 100, lifetimeEarned: 100, lifetimeSpent: 0 },
+      ledger: [{ id: "seed", delta: 100, reason: "admin", balanceAfter: 100, createdAt: new Date().toISOString() }],
+    });
     const before = 100;
     const r = useStore.getState().openBooster(true);
     expect(r.ok).toBe(true);

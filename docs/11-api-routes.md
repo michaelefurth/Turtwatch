@@ -64,11 +64,21 @@ shapes, no network. Economy endpoints are **server-authoritative**.
   (MVP uses on-device local notifications instead.)
 
 ## AI Turtle Rescue function (Edge/Lambda)
-- Input: userId, date, style/mascot hints.
-- Steps: authz → check & reserve Turtbux (idempotent) → call image model with a
-  fixed "cute pastel cartoon turtle" prompt → safety filter → store image →
-  create `ai_rescued` entry → finalize ledger. Rate-limited per user/day; on
-  failure, refund the reservation.
+
+> **As implemented (local-first build):** the `ai-rescue` Edge Function is
+> **generator-only** — authz (signed-in) → call the image model with a fixed
+> "cute pastel cartoon turtle" prompt → return `{ image: data-URL }`. It does NOT
+> touch Turtbux, entries, or storage. The **client** (`src/lib/aiTurtle.ts` +
+> `useStore.aiRescueDay`) performs the Turtbux debit and creates the `ai_rescued`
+> entry locally, falling back to a procedural turtle if the function is
+> unavailable. This keeps the image-model key server-side while the economy stays
+> client-authoritative for the offline-first app. (`501` when no provider key.)
+
+- **Fully server-authoritative variant (planned for the relational cloud build):**
+  authz → reserve Turtbux (idempotent) → generate → safety filter → store image →
+  create `ai_rescued` entry → finalize ledger; refund on failure. The
+  `POST /entries/:date/ai-rescue` route above describes this future mode (not yet
+  wired in the local-first app).
 
 ## Error conventions
 - `402 INSUFFICIENT_FUNDS`, `409 ENTRY_EXISTS` (day already has an entry),

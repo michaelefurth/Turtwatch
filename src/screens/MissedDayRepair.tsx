@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
@@ -29,6 +29,8 @@ export function MissedDayRepair() {
   const [choice, setChoice] = useState<Choice>(null);
   const [photo, setPhoto] = useState<string>(SAMPLE_TURTLES[0].url);
   const [generating, setGenerating] = useState(false);
+  const cancelledRef = useRef(false);
+  useEffect(() => () => { cancelledRef.current = true; }, []); // abort on unmount
 
   if (entries[date]) return <Navigate to={`/day/${date}`} replace />;
   if (date === todayKey() || isFuture(date)) return <Navigate to="/calendar" replace />;
@@ -44,8 +46,10 @@ export function MissedDayRepair() {
       finish(false, "Not enough Turtbux.", "✨", "");
       return;
     }
+    cancelledRef.current = false;
     setGenerating(true);
-    const { image } = await generateAiTurtleImage(date + profileName);
+    const { image } = await generateAiTurtleImage(date + profileName); // never throws
+    if (cancelledRef.current) return; // user aborted or navigated away — don't charge
     setGenerating(false);
     const r = aiRescueDay(date, image);
     finish(r.ok, r.reason, "✨", "AI turtle rescued the day!");
@@ -81,7 +85,7 @@ export function MissedDayRepair() {
 
   return (
     <div className="screen stack">
-      <button className="chip outline" style={{ alignSelf: "flex-start" }} onClick={() => nav(-1)}>‹ Back</button>
+      <button className="chip outline" style={{ alignSelf: "flex-start" }} onClick={() => { if (!generating) nav(-1); }}>‹ Back</button>
 
       <Card className="center">
         <div style={{ fontSize: 56 }}>😴</div>
@@ -110,7 +114,7 @@ export function MissedDayRepair() {
         );
       })}
 
-      <PillButton variant="ghost" onClick={() => nav("/calendar")}>Leave this day blank</PillButton>
+      <PillButton variant="ghost" onClick={() => { if (!generating) nav("/calendar"); }}>Leave this day blank</PillButton>
 
       {/* repair photo picker */}
       <ConfirmModal
@@ -136,7 +140,12 @@ export function MissedDayRepair() {
         title={generating ? "Summoning a turtle…" : "Summon an AI turtle?"}
         confirmLabel={generating ? "Summoning… 🐢" : `Rescue for ${AI_RESCUE_COST} 🪙`}
         confirmDisabled={generating}
-        onCancel={() => { if (!generating) setChoice(null); }}
+        busy={generating}
+        onCancel={() => {
+          // allow aborting an in-flight generation (don't trap the user)
+          if (generating) { cancelledRef.current = true; setGenerating(false); toast("Maybe next time 🐢", "🐢"); }
+          setChoice(null);
+        }}
         onConfirm={doRescue}
       >
         <p className="center muted" style={{ margin: 0 }}>We'll generate a unique cute turtle for this day. Balance after: {balance - AI_RESCUE_COST} 🪙</p>

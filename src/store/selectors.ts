@@ -2,7 +2,7 @@
 
 import type { AppState, ShellShield } from "@/types";
 import { shopItemById } from "@/data/shopItems";
-import { addDays, todayKey } from "@/logic/dates";
+import { addDays, todayKey, toKey } from "@/logic/dates";
 
 type Inventory = AppState["inventory"];
 
@@ -26,17 +26,18 @@ export function totalTurtles(entries: AppState["entries"]): number {
 }
 
 /** Last-7-days summary for the Home recap card. */
-export function weeklyRecap(s: AppState): { days: { key: string; done: boolean }[]; covered: number; earned: number } {
+export function weeklyRecap(s: Pick<AppState, "entries" | "ledger">): { days: { key: string; done: boolean }[]; covered: number; earned: number } {
   const today = todayKey();
   const days = Array.from({ length: 7 }, (_, i) => {
     const key = addDays(today, i - 6); // oldest → today
     return { key, done: !!s.entries[key] };
   });
   const covered = days.filter((d) => d.done).length;
-  const since = addDays(today, -6); // inclusive 7-day window by date key
+  const since = addDays(today, -6); // inclusive 7-day window by local date key
   let earned = 0;
   for (const l of s.ledger) {
-    if (l.delta > 0 && l.createdAt.slice(0, 10) >= since) earned += l.delta;
+    // compare on the LOCAL date of the ledger entry, matching `since`
+    if (l.delta > 0 && l.createdAt && toKey(new Date(l.createdAt)) >= since) earned += l.delta;
   }
   return { days, covered, earned };
 }

@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
     const res = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "gpt-image-1", prompt: PROMPT, size: "512x512", n: 1 }),
+      body: JSON.stringify({ model: "gpt-image-1", prompt: PROMPT, size: "1024x1024", n: 1 }),
     });
     if (!res.ok) return json({ error: "GENERATION_FAILED", status: res.status }, 502);
     const data = await res.json();

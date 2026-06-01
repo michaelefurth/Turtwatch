@@ -9,13 +9,14 @@ interface Props {
   children?: ReactNode;
   confirmLabel?: string;
   confirmDisabled?: boolean;
+  busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   danger?: boolean;
 }
 
 export function ConfirmModal({
-  open, title, emoji, children, confirmLabel = "Confirm", confirmDisabled, onConfirm, onCancel, danger,
+  open, title, emoji, children, confirmLabel = "Confirm", confirmDisabled, busy, onConfirm, onCancel, danger,
 }: Props) {
   const sheetRef = useRef<HTMLDivElement>(null);
 
@@ -59,6 +60,7 @@ export function ConfirmModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
+        aria-busy={busy || undefined}
         onClick={(e) => e.stopPropagation()}
         initial={{ y: 60, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}

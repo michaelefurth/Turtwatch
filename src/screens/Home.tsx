@@ -4,7 +4,7 @@ import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Mascot, type MascotMood } from "@/components/Mascot";
 import { StreakRing } from "@/components/StreakRing";
-import { Card, PillButton, TurtbuxChip, TurtlePhoto } from "@/components/common";
+import { Card, PillButton, TurtbuxChip, TurtlePhoto, formatNum } from "@/components/common";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { FACT_OF_DAY } from "@/logic/turtbux";
 import { todayKey, prettyDate } from "@/logic/dates";
@@ -40,7 +40,8 @@ export function Home() {
   const claimLoginBonus = useStore((s) => s.claimLoginBonus);
   const factClaimedOn = useStore((s) => s.factOfDayClaimedOn);
 
-  const recap = useStore(weeklyRecap);
+  const ledger = useStore((s) => s.ledger);
+  const recap = useMemo(() => weeklyRecap({ entries, ledger }), [entries, ledger]);
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const today = todayKey();
   const todayEntry = entries[today];
@@ -175,7 +176,7 @@ export function Home() {
       <Card onClick={() => nav("/calendar")} className="flat">
         <div className="between">
           <b>This week 🗓️</b>
-          <span className="muted" style={{ fontSize: 12, fontWeight: 800 }}>{recap.covered}/7 turtles · +{recap.earned} 🪙</span>
+          <span className="muted" style={{ fontSize: 12, fontWeight: 800 }}>{recap.covered}/7 · +{formatNum(recap.earned)} 🪙</span>
         </div>
         <div className="week-dots mt-sm" aria-hidden>
           {recap.days.map((d) => (
