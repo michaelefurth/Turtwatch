@@ -308,6 +308,11 @@ label.field { display: block; font-weight: 700; font-size: 13px; margin: 0 0 6px
 .collect-count { position: absolute; top: 4px; right: 5px; font-size: 10px; font-weight: 900; color: var(--primary-deep); background: var(--surface); border-radius: 999px; padding: 0 5px; box-shadow: var(--shadow-sm); }
 .reveal-card { width: 84px; border-radius: 16px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; gap: 5px; box-shadow: var(--shadow-sm); }
 
+.week-dots { display: flex; justify-content: space-between; gap: 6px; }
+.week-dot { flex: 1; height: 10px; border-radius: 999px; background: var(--line); }
+.week-dot.on { background: var(--primary); }
+.week-dot.today { box-shadow: inset 0 0 0 2px var(--primary-deep); }
+
 .legend { display: flex; flex-wrap: wrap; gap: 8px; }
 .legend .badge { background: var(--surface); box-shadow: var(--shadow-sm); }
 .sw { width: 14px; height: 14px; border-radius: 5px; display: inline-block; }

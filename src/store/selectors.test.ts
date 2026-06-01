@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { findMemory, distinctTurtleNames, completionThisMonth } from "./selectors";
+import { findMemory, distinctTurtleNames, completionThisMonth, weeklyRecap } from "./selectors";
 import { addDays, todayKey } from "@/logic/dates";
+import { makeInitialState } from "@/store/initialState";
 import type { TurtleEntry } from "@/types";
 
 function e(date: string, name?: string): TurtleEntry {
@@ -31,6 +32,24 @@ describe("distinctTurtleNames", () => {
   it("dedupes and sorts names, ignoring blanks", () => {
     const entries = { a: e("a", "Bob"), b: e("b", "Ann"), c: e("c", "Bob"), d: e("d") };
     expect(distinctTurtleNames(entries)).toEqual(["Ann", "Bob"]);
+  });
+});
+
+describe("weeklyRecap", () => {
+  it("counts covered days in the last week and sums recent earnings", () => {
+    const today = todayKey();
+    const s = makeInitialState();
+    s.entries = { [today]: e(today), [addDays(today, -1)]: e(addDays(today, -1)), [addDays(today, -40)]: e(addDays(today, -40)) };
+    s.ledger = [
+      { id: "1", delta: 10, reason: "upload", balanceAfter: 10, createdAt: new Date().toISOString() },
+      { id: "2", delta: -5, reason: "repair", balanceAfter: 5, createdAt: new Date().toISOString() },
+      { id: "3", delta: 99, reason: "upload", balanceAfter: 104, createdAt: "2000-01-01T00:00:00.000Z" },
+    ];
+    const r = weeklyRecap(s);
+    expect(r.days).toHaveLength(7);
+    expect(r.covered).toBe(2); // today + yesterday (the -40 day is outside the window)
+    expect(r.days[6].done).toBe(true); // today is last
+    expect(r.earned).toBe(10); // only positive deltas within the last 7 days
   });
 });
 

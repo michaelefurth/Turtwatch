@@ -9,7 +9,7 @@ import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { FACT_OF_DAY } from "@/logic/turtbux";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
-import { equippedAccessory, equippedFrame, equippedSticker, findMemory } from "@/store/selectors";
+import { equippedAccessory, equippedFrame, equippedSticker, findMemory, weeklyRecap } from "@/store/selectors";
 import { STICKER_EMOJI } from "@/data/shopItems";
 import { pick, GREETINGS, seasonalHint } from "@/lib/variety";
 
@@ -40,6 +40,7 @@ export function Home() {
   const claimLoginBonus = useStore((s) => s.claimLoginBonus);
   const factClaimedOn = useStore((s) => s.factOfDayClaimedOn);
 
+  const recap = useStore(weeklyRecap);
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const today = todayKey();
   const todayEntry = entries[today];
@@ -170,6 +171,18 @@ export function Home() {
           </div>
         </Card>
       )}
+
+      <Card onClick={() => nav("/calendar")} className="flat">
+        <div className="between">
+          <b>This week 🗓️</b>
+          <span className="muted" style={{ fontSize: 12, fontWeight: 800 }}>{recap.covered}/7 turtles · +{recap.earned} 🪙</span>
+        </div>
+        <div className="week-dots mt-sm" aria-hidden>
+          {recap.days.map((d) => (
+            <span key={d.key} className={`week-dot ${d.done ? "on" : ""} ${d.key === today ? "today" : ""}`} />
+          ))}
+        </div>
+      </Card>
 
       <Card onClick={openFactOfDay} className="flat">
         <div className="between">

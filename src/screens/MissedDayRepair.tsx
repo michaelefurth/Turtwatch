@@ -8,6 +8,7 @@ import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { prettyDate, todayKey, isFuture } from "@/logic/dates";
 import { availableShields } from "@/store/selectors";
+import { generateAiTurtleImage } from "@/lib/aiTurtle";
 
 type Choice = "repair" | "ai_rescue" | "shield" | null;
 
@@ -24,8 +25,10 @@ export function MissedDayRepair() {
   const shieldDay = useStore((s) => s.shieldDay);
   const buyShield = useStore((s) => s.buyShield);
 
+  const profileName = useStore((s) => s.profile.displayName);
   const [choice, setChoice] = useState<Choice>(null);
   const [photo, setPhoto] = useState<string>(SAMPLE_TURTLES[0].url);
+  const [generating, setGenerating] = useState(false);
 
   if (entries[date]) return <Navigate to={`/day/${date}`} replace />;
   if (date === todayKey() || isFuture(date)) return <Navigate to="/calendar" replace />;
@@ -36,8 +39,15 @@ export function MissedDayRepair() {
     const r = repairDay(date, { photoUrl: photo, photoSource: "library", tags: ["backfilled"] });
     finish(r.ok, r.reason, "🩹", "Day repaired!");
   };
-  const doRescue = () => {
-    const r = aiRescueDay(date);
+  const doRescue = async () => {
+    if (balance < AI_RESCUE_COST) {
+      finish(false, "Not enough Turtbux.", "✨", "");
+      return;
+    }
+    setGenerating(true);
+    const { image } = await generateAiTurtleImage(date + profileName);
+    setGenerating(false);
+    const r = aiRescueDay(date, image);
     finish(r.ok, r.reason, "✨", "AI turtle rescued the day!");
   };
   const doShield = () => {
@@ -123,9 +133,10 @@ export function MissedDayRepair() {
       <ConfirmModal
         open={choice === "ai_rescue"}
         emoji="✨"
-        title="Summon an AI turtle?"
-        confirmLabel={`Rescue for ${AI_RESCUE_COST} 🪙`}
-        onCancel={() => setChoice(null)}
+        title={generating ? "Summoning a turtle…" : "Summon an AI turtle?"}
+        confirmLabel={generating ? "Summoning… 🐢" : `Rescue for ${AI_RESCUE_COST} 🪙`}
+        confirmDisabled={generating}
+        onCancel={() => { if (!generating) setChoice(null); }}
         onConfirm={doRescue}
       >
         <p className="center muted" style={{ margin: 0 }}>We'll generate a unique cute turtle for this day. Balance after: {balance - AI_RESCUE_COST} 🪙</p>

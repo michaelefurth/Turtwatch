@@ -2,7 +2,7 @@
 
 import type { AppState, ShellShield } from "@/types";
 import { shopItemById } from "@/data/shopItems";
-import { addDays } from "@/logic/dates";
+import { addDays, todayKey } from "@/logic/dates";
 
 type Inventory = AppState["inventory"];
 
@@ -23,6 +23,22 @@ export function availableShields(shields: ShellShield[]): number {
 
 export function totalTurtles(entries: AppState["entries"]): number {
   return Object.keys(entries).length;
+}
+
+/** Last-7-days summary for the Home recap card. */
+export function weeklyRecap(s: AppState): { days: { key: string; done: boolean }[]; covered: number; earned: number } {
+  const today = todayKey();
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const key = addDays(today, i - 6); // oldest → today
+    return { key, done: !!s.entries[key] };
+  });
+  const covered = days.filter((d) => d.done).length;
+  const since = addDays(today, -6); // inclusive 7-day window by date key
+  let earned = 0;
+  for (const l of s.ledger) {
+    if (l.delta > 0 && l.createdAt.slice(0, 10) >= since) earned += l.delta;
+  }
+  return { days, covered, earned };
 }
 
 /** "On this day" memory: same calendar date last year, else 90 / 30 days ago. */

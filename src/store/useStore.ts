@@ -61,7 +61,7 @@ interface Actions {
   updateEntry: (date: string, draft: EntryDraft) => Reward;
   deleteEntry: (date: string) => void;
   repairDay: (date: string, draft: EntryDraft) => { ok: boolean; reason?: string };
-  aiRescueDay: (date: string) => { ok: boolean; reason?: string };
+  aiRescueDay: (date: string, photoUrl?: string) => { ok: boolean; reason?: string };
   shieldDay: (date: string) => { ok: boolean; reason?: string };
   buyShield: () => { ok: boolean; reason?: string };
   autoApplyShield: () => string | null; // returns the date protected, if any
@@ -273,13 +273,14 @@ export const useStore = create<Store>((set, get) => {
       return { ok: true };
     },
 
-    aiRescueDay: (date) => {
+    aiRescueDay: (date, photoUrl) => {
       const s = get();
       if (s.entries[date]) return { ok: false, reason: "Day already has an entry." };
       if (s.wallet.balance < AI_RESCUE_COST) return { ok: false, reason: "Not enough Turtbux." };
       const entries = { ...s.entries };
       entries[date] = makeRecoveryEntry(date, "ai_rescued", {
-        photoUrl: generateAiTurtle(date + s.profile.displayName),
+        // a server-generated image if supplied, else the local procedural turtle
+        photoUrl: photoUrl ?? generateAiTurtle(date + s.profile.displayName),
         photoSource: "ai",
         turtleName: "Mystery AI Turtle",
         tags: ["ai-rescued"],
