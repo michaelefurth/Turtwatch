@@ -39,9 +39,12 @@ supabase db push   # includes 0004_push.sql
 supabase secrets set \
   VAPID_PUBLIC_KEY=<public key> \
   VAPID_PRIVATE_KEY=<private key> \
-  VAPID_SUBJECT=mailto:you@yourpond.com
+  VAPID_SUBJECT=mailto:you@yourpond.com \
+  CRON_SECRET=<a long random string>
 supabase functions deploy send-reminders
 ```
+The function is public (`verify_jwt = false`) but rejects any request without the
+matching `x-cron-secret` header, so only your cron can trigger sends.
 
 **5. Schedule it hourly** (Supabase scheduled triggers / pg_cron):
 ```sql
@@ -49,7 +52,7 @@ select cron.schedule(
   'turtwatch-reminders', '0 * * * *',
   $$ select net.http_post(
        url := 'https://<ref>.functions.supabase.co/send-reminders',
-       headers := '{"Authorization":"Bearer <service-role-key>"}'::jsonb
+       headers := '{"x-cron-secret":"<same CRON_SECRET>"}'::jsonb
      ); $$
 );
 ```

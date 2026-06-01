@@ -38,7 +38,13 @@ function localParts(tz: string, now: Date) {
 }
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
-Deno.serve(async () => {
+Deno.serve(async (req: Request) => {
+  // Only an authorized caller (the cron job) may trigger sends.
+  const secret = Deno.env.get("CRON_SECRET");
+  if (secret && req.headers.get("x-cron-secret") !== secret) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   webpush.setVapidDetails(
     Deno.env.get("VAPID_SUBJECT") || "mailto:hello@turtwatch.app",
@@ -47,14 +53,13 @@ Deno.serve(async () => {
   );
 
   const now = new Date();
-  const { data: subs } = await supabase.from("push_subscriptions").select("user_id, subscription, endpoint");
+  const { data: subs } = await supabase.from("push_subscriptions").select("user_id, subscription, endpoint, last_sent");
   if (!subs?.length) return new Response(JSON.stringify({ sent: 0 }), { headers: { "Content-Type": "application/json" } });
 
-  // group subscriptions by user
-  const byUser = new Map<string, { subscription: unknown; endpoint: string }[]>();
+  const byUser = new Map<string, typeof subs>();
   for (const s of subs) {
     const arr = byUser.get(s.user_id) ?? [];
-    arr.push({ subscription: s.subscription, endpoint: s.endpoint });
+    arr.push(s);
     byUser.set(s.user_id, arr);
   }
 
@@ -66,30 +71,36 @@ Deno.serve(async () => {
       | undefined;
     if (!state) continue;
     const n = state.notifications ?? {};
-    if (n.pushEnabled === false) continue;
+    if (!n.pushEnabled) continue; // positive opt-in only (undefined/legacy = off)
     const tz = state.profile?.timezone || "UTC";
     const { dateKey, hour } = localParts(tz, now);
-
-    let payload: { title: string; body: string; url: string } | null = null;
     const doneToday = !!state.entries?.[dateKey];
     const reminderHour = Number((n.reminderTime ?? "19:00").split(":")[0]);
 
-    if (hour === MORNING_HOUR) {
-      payload = { ...pick(GOOD_MORNINGS), url: "/" };
-    } else if (n.dailyReminderEnabled !== false && hour === reminderHour && !doneToday) {
-      payload = { ...pick(REMINDERS), url: "/upload" };
+    // Decide which messages are due this hour (both can be due; rare overlap).
+    const due: { type: "morning" | "reminder"; payload: { title: string; body: string; url: string } }[] = [];
+    if (hour === MORNING_HOUR) due.push({ type: "morning", payload: { ...pick(GOOD_MORNINGS), url: "/" } });
+    if (n.dailyReminderEnabled !== false && hour === reminderHour && !doneToday) {
+      due.push({ type: "reminder", payload: { ...pick(REMINDERS), url: "/upload" } });
     }
-    if (!payload) continue;
+    if (due.length === 0) continue;
 
-    for (const { subscription, endpoint } of userSubs) {
-      try {
-        await webpush.sendNotification(subscription, JSON.stringify(payload));
-        sent++;
-      } catch (e) {
-        // prune expired/invalid subscriptions
-        const code = (e as { statusCode?: number }).statusCode;
-        if (code === 404 || code === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    for (const sub of userSubs) {
+      const lastSent = (sub.last_sent ?? {}) as Record<string, string>;
+      let changed = false;
+      for (const { type, payload } of due) {
+        if (lastSent[type] === dateKey) continue; // already sent today (dedups DST / double cron)
+        try {
+          await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
+          lastSent[type] = dateKey;
+          changed = true;
+          sent++;
+        } catch (e) {
+          const code = (e as { statusCode?: number }).statusCode;
+          if (code === 404 || code === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+        }
       }
+      if (changed) await supabase.from("push_subscriptions").update({ last_sent: lastSent }).eq("endpoint", sub.endpoint);
     }
   }
 

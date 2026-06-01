@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { useStore } from "@/store/useStore";
-import { playChime, vibrate } from "@/lib/effects";
+import { playChime, vibrate, prefersReducedMotion } from "@/lib/effects";
 
 interface ToastMsg {
   id: string;
@@ -31,7 +31,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     // gentle sound + haptic, gated by the user's settings
     const n = useStore.getState().notifications;
     if (n.soundEnabled) playChime();
-    if (n.hapticsEnabled !== false) vibrate([0, 18, 40, 18]);
+    if (n.hapticsEnabled !== false && !prefersReducedMotion()) vibrate([0, 18, 40, 18]);
     const id = Math.random().toString(36).slice(2);
     const items = Array.from({ length: 26 }, () => {
       const pool = emojis && emojis.length ? emojis : CONFETTI;

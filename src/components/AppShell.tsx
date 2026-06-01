@@ -3,7 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { TabBar } from "./TabBar";
 import { useFeedback } from "./feedback";
-import { useStore } from "@/store/useStore";
+import { useStore, isHydrating } from "@/store/useStore";
 import { themeById } from "@/data/shopItems";
 import { ACHIEVEMENTS } from "@/data/achievements";
 import { RANKS, rankFor } from "@/logic/ranks";
@@ -82,22 +82,35 @@ export function AppShell() {
   const lastRankIdx = useRef(RANKS.indexOf(rankFor(totalTurtles(useStore.getState().entries)).rank));
   useEffect(() => {
     return useStore.subscribe((s) => {
-      for (const id of Object.keys(s.achievements)) {
+      const achKeys = Object.keys(s.achievements);
+      const rankIdx = RANKS.indexOf(rankFor(totalTurtles(s.entries)).rank);
+
+      // A reset or cloud restore replaces state wholesale — re-sync the baselines
+      // without celebrating anything the user already had.
+      if (isHydrating() || achKeys.length < seenAch.current.size) {
+        seenAch.current = new Set(achKeys);
+        lastRankIdx.current = rankIdx;
+        return;
+      }
+
+      for (const id of achKeys) {
         if (!seenAch.current.has(id)) {
           seenAch.current.add(id);
           const a = ACHIEVEMENTS.find((x) => x.id === id);
           if (a) toast(`Achievement: ${a.title}`, a.emoji);
         }
       }
-      // rank-up celebration (only on promotion)
-      const rank = rankFor(totalTurtles(s.entries)).rank;
-      const idx = RANKS.indexOf(rank);
-      if (idx > lastRankIdx.current) {
-        lastRankIdx.current = idx;
-        celebrate(["🏅", "🐢", "✨", "🎉", "👑", "🌟"]);
-        setTimeout(() => toast(`Ranked up to ${rank.emoji} ${rank.name}!`, rank.emoji), 250);
-      } else if (idx < lastRankIdx.current) {
-        lastRankIdx.current = idx; // keep in sync on downgrade, no celebration
+      // rank-up celebration (promotion only) — delayed so it doesn't get
+      // overwritten by an upload's confetti fired in the same commit
+      if (rankIdx > lastRankIdx.current) {
+        lastRankIdx.current = rankIdx;
+        const rank = RANKS[rankIdx];
+        setTimeout(() => {
+          celebrate(["🏅", "🐢", "✨", "🎉", "👑", "🌟"]);
+          toast(`Ranked up to ${rank.emoji} ${rank.name}!`, rank.emoji);
+        }, 1800);
+      } else if (rankIdx < lastRankIdx.current) {
+        lastRankIdx.current = rankIdx; // sync on downgrade, no celebration
       }
     });
   }, [toast, celebrate]);

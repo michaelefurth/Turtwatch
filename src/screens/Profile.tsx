@@ -7,7 +7,7 @@ import { computeStreak } from "@/logic/streak";
 import { rankFor } from "@/logic/ranks";
 import { ACHIEVEMENTS } from "@/data/achievements";
 import { TOTAL_CARDS } from "@/logic/booster";
-import { ALL_FACT_CARDS, RARITY, type CardRarity } from "@/data/factCards";
+import { ALL_FACT_CARDS, RARITY, factCardById, type CardRarity } from "@/data/factCards";
 import { destinationFor, reachedCount, questStreakDisplay } from "@/logic/quest";
 import { todayKey, yesterdayKey } from "@/logic/dates";
 import { equippedAccessory, totalTurtles } from "@/store/selectors";
@@ -32,11 +32,14 @@ export function Profile() {
   const quest = useStore((s) => s.quest);
   const collected = Object.keys(collection).length;
 
-  const ownedByRarity = RARITY_ORDER.map((r) => ({
-    rarity: r,
-    owned: Object.keys(collection).filter((id) => ALL_FACT_CARDS.find((c) => c.id === id)?.rarity === r).length,
-    total: RARITY_TOTALS[r] ?? 0,
-  }));
+  const ownedByRarity = useMemo(() => {
+    const counts: Record<CardRarity, number> = { common: 0, rare: 0, epic: 0, legendary: 0 };
+    for (const id of Object.keys(collection)) {
+      const r = factCardById(id)?.rarity;
+      if (r) counts[r]++;
+    }
+    return RARITY_ORDER.map((r) => ({ rarity: r, owned: counts[r], total: RARITY_TOTALS[r] ?? 0 }));
+  }, [collection]);
   const questSteps = quest?.steps ?? 0;
   const dest = destinationFor(questSteps);
   const goalStreak = questStreakDisplay(quest, todayKey(), yesterdayKey());
@@ -82,7 +85,7 @@ export function Profile() {
         </div>
         {next && (
           <div style={{ marginTop: 12 }}>
-            <div className="progress"><div style={{ width: `${Math.min(100, (total / next.min) * 100)}%` }} /></div>
+            <div className="progress"><div style={{ width: `${Math.min(100, Math.max(0, ((total - rank.min) / (next.min - rank.min)) * 100))}%` }} /></div>
             <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{toNext} more turtle{toNext === 1 ? "" : "s"} → {next.emoji} {next.name}</span>
           </div>
         )}
@@ -103,7 +106,9 @@ export function Profile() {
         <div className="between">
           <div>
             <b>{reachedCount(questSteps)} place{reachedCount(questSteps) === 1 ? "" : "s"} explored</b>
-            <div className="muted" style={{ fontSize: 13 }}>Heading to {dest.emoji} {dest.name}</div>
+            <div className="muted" style={{ fontSize: 13 }}>
+              {quest ? `Heading to ${dest.emoji} ${dest.name}` : "Start your trek — set a daily goal →"}
+            </div>
           </div>
           <span className="chip">🔥 {goalStreak}</span>
         </div>

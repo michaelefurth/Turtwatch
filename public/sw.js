@@ -23,15 +23,19 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || "/";
+  const target = new URL(url, self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      // prefer a window already on our origin; navigate it where supported
       for (const w of wins) {
-        if ("focus" in w) {
-          if (w.navigate) w.navigate(url);
+        let sameOrigin = false;
+        try { sameOrigin = new URL(w.url).origin === self.location.origin; } catch (_e) { sameOrigin = false; }
+        if (sameOrigin) {
+          if (w.navigate) return w.navigate(target).then((c) => (c || w).focus()).catch(() => w.focus());
           return w.focus();
         }
       }
-      return self.clients.openWindow(url);
+      return self.clients.openWindow(target);
     }),
   );
 });

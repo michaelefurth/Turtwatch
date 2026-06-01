@@ -4,6 +4,7 @@ create table if not exists push_subscriptions (
   endpoint     text primary key,
   user_id      uuid references auth.users(id) on delete cascade,
   subscription jsonb not null,
+  last_sent    jsonb not null default '{}'::jsonb, -- { morning:'YYYY-MM-DD', reminder:'YYYY-MM-DD' } dedup
   updated_at   timestamptz not null default now()
 );
 create index if not exists push_subscriptions_user on push_subscriptions (user_id);

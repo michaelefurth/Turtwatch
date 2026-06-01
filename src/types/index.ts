@@ -76,7 +76,7 @@ export interface ShellShield {
 }
 
 export type FactCategory = "biology" | "history" | "record" | "silly" | "care";
-export type Rarity = "common" | "rare" | "legendary";
+export type Rarity = "common" | "rare" | "epic" | "legendary";
 export interface TurtleFact {
   id: string;
   title: string;

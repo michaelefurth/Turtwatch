@@ -54,8 +54,10 @@ export async function enablePush(): Promise<{ ok: boolean; mode: "push" | "local
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(vapid) as unknown as BufferSource,
       }));
-    await saveSubscription(sub);
-    return { ok: true, mode: "push" };
+    const saved = await saveSubscription(sub);
+    // if we couldn't store it (e.g. not signed in), server push won't fire —
+    // report local-only so the UI doesn't over-promise
+    return { ok: true, mode: saved ? "push" : "local" };
   } catch (e) {
     return { ok: false, mode: "denied", reason: String(e) };
   }
@@ -71,19 +73,23 @@ export async function disablePush(): Promise<void> {
   }
 }
 
-async function saveSubscription(sub: PushSubscription): Promise<void> {
+/** Returns true only if the subscription was actually stored server-side. */
+async function saveSubscription(sub: PushSubscription): Promise<boolean> {
   const sb = getSupabase();
-  if (!sb) return; // local-only mode keeps the subscription in the browser
+  if (!sb) return false; // local-only mode keeps the subscription in the browser
   const { data } = await sb.auth.getUser();
-  if (!data.user) return;
-  await sb.from("push_subscriptions").upsert(
+  if (!data.user) return false; // signed out — can't store, so not true server push
+  const { error } = await sb.from("push_subscriptions").upsert(
     { user_id: data.user.id, endpoint: sub.endpoint, subscription: sub.toJSON(), updated_at: new Date().toISOString() },
     { onConflict: "endpoint" },
   );
+  if (error) throw error; // surfaced by enablePush's catch
+  return true;
 }
 
 async function removeSubscription(endpoint: string): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
-  await sb.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  const { error } = await sb.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  if (error) console.warn("push: failed to remove subscription", error.message);
 }

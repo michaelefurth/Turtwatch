@@ -34,6 +34,11 @@ import { ACHIEVEMENTS } from "@/data/achievements";
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 const nowIso = () => new Date().toISOString();
 
+// True while a bulk cloud-restore is replacing state — lets UI watchers skip
+// celebrating achievements/ranks that the user already earned.
+let hydrating = false;
+export const isHydrating = () => hydrating;
+
 export interface EntryDraft {
   photoUrl?: string;
   photoSource?: PhotoSource;
@@ -571,9 +576,12 @@ export const useStore = create<Store>((set, get) => {
     setCloud: (patch) => commit({ cloud: { ...(get().cloud ?? { autoBackup: false }), ...patch } }),
 
     hydrateState: (state) => {
-      // replace local state with a restored cloud snapshot
+      // replace local state with a restored cloud snapshot. Flag the bulk replace
+      // so the AppShell watchers don't fire a flood of achievement/rank-up toasts.
+      hydrating = true;
       saveState(state);
       set(state as never);
+      hydrating = false;
     },
 
     reset: () => {

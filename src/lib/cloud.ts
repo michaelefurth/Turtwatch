@@ -123,7 +123,19 @@ export function contentSignature(s: AppState): string {
     const u = e.updatedAt || "";
     for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) | 0;
   }
-  return `${s.ledger.length}:${Object.keys(s.entries).length}:${Object.keys(s.inventory).length}:${s.wallet.balance}:${h}`;
+  const cards = Object.keys(s.collection ?? {}).length;
+  const steps = s.quest?.steps ?? 0;
+  return [
+    s.ledger.length,
+    Object.keys(s.entries).length,
+    Object.keys(s.inventory).length,
+    s.wallet.balance,
+    cards,
+    steps,
+    s.gamesWon ?? 0,
+    s.mantrasFocused ?? 0,
+    h,
+  ].join(":");
 }
 
 export const cloudAvailable = isSupabaseEnabled;

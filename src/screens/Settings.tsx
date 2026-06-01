@@ -132,6 +132,8 @@ export function Settings() {
         )}
         <div className="between"><span>Streak-at-risk alerts</span><Toggle on={notifications.streakRiskEnabled} onClick={() => updateNotifications({ streakRiskEnabled: !notifications.streakRiskEnabled })} /></div>
         <div className="between"><span>Fact of the day</span><Toggle on={notifications.factOfDayEnabled} onClick={() => updateNotifications({ factOfDayEnabled: !notifications.factOfDayEnabled })} /></div>
+        <div className="between"><span>Celebration sounds</span><Toggle on={!!notifications.soundEnabled} onClick={() => updateNotifications({ soundEnabled: !notifications.soundEnabled })} /></div>
+        <div className="between"><span>Haptic feedback</span><Toggle on={notifications.hapticsEnabled !== false} onClick={() => updateNotifications({ hapticsEnabled: notifications.hapticsEnabled === false })} /></div>
         {pushSupported() && (
           <>
             <div className="between">
@@ -155,7 +157,10 @@ export function Settings() {
                 }}
               />
             </div>
-            {notifications.pushEnabled && !import.meta.env.VITE_VAPID_PUBLIC_KEY && (
+            {notifications.pushEnabled && notificationPermission() !== "granted" && (
+              <span className="muted" style={{ fontSize: 12 }}>⚠️ Notification permission revoked — re-allow it for push to work.</span>
+            )}
+            {notifications.pushEnabled && notificationPermission() === "granted" && !import.meta.env.VITE_VAPID_PUBLIC_KEY && (
               <span className="muted" style={{ fontSize: 12 }}>Closed-app push needs server setup (see docs/17); in-app reminders work now.</span>
             )}
           </>
