@@ -9,7 +9,9 @@ import { prettyDate } from "@/logic/dates";
 import {
   listFriends, pendingRequests, sendFriendRequest, respondFriendRequest,
   removeFriend, setUsername, friendTurtles, friendErr,
-  type Friend, type PendingRequest, type OutgoingRequest, type FriendTurtle,
+  listCheers, sendCheer, CHEER_EMOJI,
+  listGroupGoals, createGroupGoal, respondGroupGoal, leaveGroupGoal,
+  type Friend, type PendingRequest, type OutgoingRequest, type FriendTurtle, type Cheer, type GroupGoal,
 } from "@/lib/friends";
 
 export function Friends() {
@@ -22,6 +24,10 @@ export function Friends() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [incoming, setIncoming] = useState<PendingRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
+  const [cheers, setCheers] = useState<Cheer[]>([]);
+  const [goals, setGoals] = useState<GroupGoal[]>([]);
+  const [goalTitle, setGoalTitle] = useState("");
+  const [goalTarget, setGoalTarget] = useState(20);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<{ friend: Friend; turtles: FriendTurtle[] } | null>(null);
@@ -31,10 +37,12 @@ export function Friends() {
 
   const refresh = async () => {
     try {
-      const [fs, reqs] = await Promise.all([listFriends(), pendingRequests()]);
+      const [fs, reqs, ch, gg] = await Promise.all([listFriends(), pendingRequests(), listCheers(), listGroupGoals()]);
       setFriends(fs);
       setIncoming(reqs.incoming);
       setOutgoing(reqs.outgoing);
+      setCheers(ch.cheers);
+      setGoals(gg);
     } catch { /* offline — keep what we have */ }
     finally { setLoading(false); }
   };
@@ -89,6 +97,31 @@ export function Friends() {
     setView({ friend: f, turtles });
   });
 
+  const cheer = (friendId: string, emoji: string) => run(async () => {
+    await sendCheer(friendId, emoji);
+    toast(`Cheer sent! ${emoji}`, "💌");
+  });
+
+  const startGoal = (friendId: string) => run(async () => {
+    await createGroupGoal(friendId, goalTitle.trim() || "Turtles together", goalTarget);
+    setGoalTitle("");
+    setView(null);
+    toast("Shared goal sent! 🎯", "🐢");
+    await refresh();
+  });
+
+  const respondGoal = (id: string, accept: boolean) => run(async () => {
+    await respondGroupGoal(id, accept);
+    toast(accept ? "You joined the goal! 🎯" : "Goal dismissed", "🐢");
+    await refresh();
+  });
+
+  const leaveGoal = (id: string) => run(async () => {
+    await leaveGroupGoal(id);
+    toast("Left the goal", "🐢");
+    await refresh();
+  });
+
   return (
     <div className="screen stack">
       <div className="between"><h1>Friends 👋</h1><BackButton /></div>
@@ -136,6 +169,54 @@ export function Friends() {
         </Card>
       )}
 
+      {/* cheers received */}
+      {cheers.length > 0 && (
+        <Card className="stack">
+          <h3 style={{ margin: 0 }}>Cheers received 👏</h3>
+          {cheers.slice(0, 8).map((c) => (
+            <div key={c.id} className="row" style={{ gap: 8 }}>
+              <span style={{ fontSize: 22 }} aria-hidden>{c.emoji}</span>
+              <span><b>{c.displayName}</b> <span className="muted" style={{ fontSize: 12 }}>cheered you on</span></span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {/* shared goals */}
+      {goals.length > 0 && (
+        <>
+          <h2 style={{ margin: "4px 0 0" }}>Shared goals 🎯</h2>
+          {goals.map((g) => {
+            const pct = Math.min(100, Math.round((g.total / g.target) * 100));
+            const reached = g.total >= g.target;
+            return (
+              <Card key={g.id} className="stack">
+                <div className="between">
+                  <b>{g.title}</b>
+                  <span className={`chip ${reached ? "gold" : ""}`}>{g.total}/{g.target}{reached ? " ✓" : ""}</span>
+                </div>
+                <div className="progress"><div style={{ width: `${pct}%` }} /></div>
+                <div className="row wrap gap8">
+                  {g.members.map((m) => (
+                    <span key={m.id} className={`chip ${m.status === "pending" ? "outline" : ""}`}>
+                      {m.displayName.split(" ")[0]}: {m.status === "pending" ? "invited" : `${m.contribution} 🐢`}
+                    </span>
+                  ))}
+                </div>
+                {g.myStatus === "pending" ? (
+                  <div className="row" style={{ gap: 8 }}>
+                    <button className="chip selected" disabled={busy} onClick={() => respondGoal(g.id, true)}>Join goal</button>
+                    <button className="chip outline" disabled={busy} onClick={() => respondGoal(g.id, false)}>Decline</button>
+                  </div>
+                ) : (
+                  <button className="chip outline" style={{ alignSelf: "flex-start" }} disabled={busy} onClick={() => leaveGoal(g.id)}>Leave goal</button>
+                )}
+              </Card>
+            );
+          })}
+        </>
+      )}
+
       {/* friends list */}
       <div className="between"><h2 style={{ margin: 0 }}>Pond pals</h2>{friends.length > 0 && <span className="chip">{friends.length}</span>}</div>
       {loading ? (
@@ -179,7 +260,23 @@ export function Friends() {
           <div className="scrim" onClick={() => setView(null)}>
             <motion.div ref={viewRef} className="sheet" role="dialog" aria-modal="true" aria-labelledby="friend-title" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}>
               <div className="between">
-                <div className="row"><Mascot mascot={view.friend.mascot} size={44} /><div><h2 id="friend-title" style={{ margin: 0 }}>{view.friend.displayName}</h2><span className="muted" style={{ fontSize: 12 }}>@{view.friend.username} · 🔥 {view.friend.streak}</span></div></div>
+                <div className="row"><Mascot mascot={view.friend.mascot} size={44} /><div><h2 id="friend-title" style={{ margin: 0 }}>{view.friend.displayName}</h2><span className="muted" style={{ fontSize: 12 }}>@{view.friend.username} · 🔥 {view.friend.streak} · 🗺️ {view.friend.trekStreak}</span></div></div>
+              </div>
+              <div className="row wrap gap8" style={{ marginTop: 12 }}>
+                <span className="muted" style={{ fontSize: 12, fontWeight: 800, alignSelf: "center" }}>Send a cheer:</span>
+                {CHEER_EMOJI.map((e) => (
+                  <button key={e} className="chip outline" disabled={busy} onClick={() => cheer(view.friend.id, e)} aria-label={`Send ${e} cheer`}>{e}</button>
+                ))}
+              </div>
+
+              <div className="stack" style={{ marginTop: 14, gap: 8 }}>
+                <b style={{ fontSize: 14 }}>Start a shared goal 🎯</b>
+                <input className="input" placeholder="e.g. 20 turtles together" maxLength={60} value={goalTitle} onChange={(e) => setGoalTitle(e.target.value)} aria-label="Goal title" />
+                <div className="row" style={{ gap: 8 }}>
+                  <span className="muted" style={{ fontSize: 13, alignSelf: "center" }}>Target</span>
+                  <input className="input" type="number" min={1} max={1000} style={{ width: 100 }} value={goalTarget} onChange={(e) => setGoalTarget(Math.max(1, Math.min(1000, +e.target.value || 1)))} aria-label="Goal target" />
+                  <PillButton small onClick={() => startGoal(view.friend.id)} disabled={busy}>Invite</PillButton>
+                </div>
               </div>
               {view.turtles.length === 0 ? (
                 <p className="muted center" style={{ marginTop: 16 }}>No shared turtles yet 🐢</p>

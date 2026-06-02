@@ -2,7 +2,7 @@
 // safely on a fresh OR partially-applied project (run: node scripts/gen-schema.mjs).
 import { readFileSync, writeFileSync } from "node:fs";
 
-const files = ["0001_init", "0002_seed_catalog", "0003_user_state", "0004_push", "0005_server_economy", "0006_fact_cards_seed", "0007_friends"];
+const files = ["0001_init", "0002_seed_catalog", "0003_user_state", "0004_push", "0005_server_economy", "0006_fact_cards_seed", "0007_friends", "0008_cheers", "0009_group_goals"];
 const dir = new URL("../supabase/migrations/", import.meta.url);
 
 let body = files

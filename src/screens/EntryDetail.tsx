@@ -3,6 +3,7 @@ import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { useStore, isCloudMode } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { setEntryShared, friendErr } from "@/lib/friends";
+import { shareTurtleCard } from "@/lib/shareCard";
 import { Card, PillButton, StateBadge, TurtlePhoto, BackButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { moodEmoji } from "@/components/MoodPicker";
@@ -49,6 +50,19 @@ export function EntryDetail() {
     // empty past day → send to repair; today → upload
     return <Navigate to={date === todayKey() ? "/upload" : `/repair/${date}`} replace />;
   }
+
+  const onShareCard = async () => {
+    const res = await shareTurtleCard({
+      photoUrl: entry.photoUrl,
+      name: entry.turtleName || "A lovely turtle",
+      dateLabel: prettyDate(date),
+      streak: computeStreak(entries).current,
+      earned: entry.earnedTurtbux,
+      badge: moodEmoji(entry.mood) || "🐢",
+    });
+    if (res === "downloaded") toast("Saved your turtle card 📥", "🐢");
+    else if (res === "failed") toast("Couldn't make the card 😢", "🐢");
+  };
 
   const frameClass = equippedFrame(inventory) ?? "";
   const sticker = STICKER_EMOJI[equippedSticker(inventory) ?? ""];
@@ -109,6 +123,7 @@ export function EntryDetail() {
       )}
 
       <div className="stack mt">
+        {entry.photoUrl && <PillButton variant="secondary" onClick={onShareCard}>📤 Share card</PillButton>}
         <PillButton variant="secondary" onClick={() => nav(date === todayKey() ? "/upload" : `/upload?date=${date}`)}>
           ✏️ Edit {date === todayKey() ? "today's turtle" : "entry"}
         </PillButton>
