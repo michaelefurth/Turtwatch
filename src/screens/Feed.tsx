@@ -19,6 +19,7 @@ export function Feed() {
   const [q, setQ] = useState("");
   const [mood, setMood] = useState<Mood | "all">("all");
   const [name, setName] = useState<string>("all");
+  const [sort, setSort] = useState<"new" | "old">("new");
 
   const emptyDiary = useMemo(() => pick(EMPTY_DIARY), []);
   const emptySearch = useMemo(() => pick(EMPTY_SEARCH), []);
@@ -36,8 +37,8 @@ export function Feed() {
         const hay = [e.turtleName, e.notes, ...(e.tags ?? [])].join(" ").toLowerCase();
         return hay.includes(term);
       })
-      .sort((a, b) => (a.date < b.date ? 1 : -1));
-  }, [entries, q, mood, name]);
+      .sort((a, b) => (a.date < b.date ? 1 : -1) * (sort === "new" ? 1 : -1));
+  }, [entries, q, mood, name, sort]);
 
   const total = Object.keys(entries).length;
 
@@ -70,6 +71,15 @@ export function Feed() {
               {n}
             </button>
           ))}
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="between" style={{ marginTop: 2 }}>
+          <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>{list.length} {list.length === 1 ? "entry" : "entries"}</span>
+          <button className="chip outline icon-chip" onClick={() => setSort(sort === "new" ? "old" : "new")} aria-label={sort === "new" ? "Sort oldest first" : "Sort newest first"}>
+            {sort === "new" ? "Newest first" : "Oldest first"}
+          </button>
         </div>
       )}
 

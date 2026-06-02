@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { Mascot } from "@/components/Mascot";
 import { Card, formatNum } from "@/components/common";
+import { GearIcon } from "@/components/icons";
 import { computeStreak } from "@/logic/streak";
 import { rankFor } from "@/logic/ranks";
 import { ACHIEVEMENTS } from "@/data/achievements";
@@ -74,7 +75,7 @@ export function Profile() {
     <div className="screen stack">
       <div className="between">
         <h1>Profile</h1>
-        <button className="chip outline" onClick={() => nav("/settings")}>⚙️ Settings</button>
+        <button className="chip outline icon-chip" onClick={() => nav("/settings")} aria-label="Settings"><GearIcon size={16} /> Settings</button>
       </div>
 
       <Card className="center">

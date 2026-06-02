@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useStore } from "@/store/useStore";
+import { useStore, isCloudMode } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Mascot } from "@/components/Mascot";
-import { Card, PillButton } from "@/components/common";
+import { Card, PillButton, BackButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { THEMES } from "@/data/shopItems";
-import { exportState } from "@/store/persistence";
+import { exportState, parseImportedState } from "@/store/persistence";
+import type { AppState } from "@/types";
 import { requestNotificationPermission, notificationPermission, notificationsSupported } from "@/lib/notifications";
 import { pushSupported, enablePush, disablePush } from "@/lib/push";
 import type { Mascot as MascotType } from "@/types";
@@ -29,7 +30,19 @@ export function Settings() {
   const updateProfile = useStore((s) => s.updateProfile);
   const updateNotifications = useStore((s) => s.updateNotifications);
   const reset = useStore((s) => s.reset);
+  const hydrateState = useStore((s) => s.hydrateState);
   const [confirmReset, setConfirmReset] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = useState<AppState | null>(null);
+
+  const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-importing the same file
+    if (!file) return;
+    const state = parseImportedState(await file.text());
+    if (!state) { toast("That doesn't look like a TurtWatch backup 🐢", "😢"); return; }
+    setPendingImport(state);
+  };
 
   const ownedThemeIds = new Set(["pond_mint", ...THEMES.filter((t) => inventory[`theme_${t.id}`]).map((t) => t.id)]);
 
@@ -49,7 +62,7 @@ export function Settings() {
     <div className="screen stack">
       <div className="between">
         <h1>Settings ⚙️</h1>
-        <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
+        <BackButton />
       </div>
 
       <Card onClick={() => nav("/account")}>
@@ -169,8 +182,14 @@ export function Settings() {
 
       <Card className="stack">
         <h3 style={{ margin: 0 }}>Data & privacy</h3>
-        <span className="muted" style={{ fontSize: 13 }}>Your turtles live on this device. Export a backup any time.</span>
+        <span className="muted" style={{ fontSize: 13 }}>Your turtles live on this device. Export a backup any time{isCloudMode() ? "" : ", or restore one"}.</span>
         <PillButton variant="secondary" onClick={doExport}>📤 Export my diary (JSON)</PillButton>
+        {!isCloudMode() && (
+          <>
+            <PillButton variant="secondary" onClick={() => importRef.current?.click()}>📥 Import a backup</PillButton>
+            <input ref={importRef} type="file" accept="application/json,.json" hidden onChange={onImportFile} />
+          </>
+        )}
         <PillButton variant="danger" onClick={() => setConfirmReset(true)}>🗑️ Reset everything</PillButton>
       </Card>
 
@@ -186,6 +205,24 @@ export function Settings() {
         onConfirm={() => { reset(); toast("Fresh pond! 🌿", "🐢"); nav("/onboarding"); }}
       >
         <p className="center muted" style={{ margin: 0 }}>This deletes every turtle, your streak, and your Turtbux. Cannot be undone.</p>
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={!!pendingImport}
+        emoji="📥"
+        title="Restore this backup?"
+        confirmLabel="Replace & restore"
+        onCancel={() => setPendingImport(null)}
+        onConfirm={() => {
+          if (pendingImport) hydrateState(pendingImport);
+          setPendingImport(null);
+          toast("Backup restored! 🐢", "✨");
+          nav("/");
+        }}
+      >
+        <p className="center muted" style={{ margin: 0 }}>
+          This replaces everything on this device — {pendingImport ? Object.keys(pendingImport.entries).length : 0} turtle{pendingImport && Object.keys(pendingImport.entries).length === 1 ? "" : "s"} from the backup will take over.
+        </p>
       </ConfirmModal>
     </div>
   );

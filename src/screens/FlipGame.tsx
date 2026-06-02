@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
-import { Card, PillButton } from "@/components/common";
+import { Card, PillButton, BackButton } from "@/components/common";
 import { makeDeck, pickFaces, gameReward, DAILY_GAME_CAP, type FlipCard } from "@/logic/flipgame";
 import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
 import { todayKey } from "@/logic/dates";
@@ -16,7 +15,6 @@ const WIN_OK = ["Nicely done!", "Lovely matching 🐢", "Pond pairs complete!", 
 const PAIRS = 6; // 12 cards, gentle 3×4 board
 
 export function FlipGame() {
-  const nav = useNavigate();
   const { celebrate, toast } = useFeedback();
   const entries = useStore((s) => s.entries);
   const award = useStore((s) => s.awardGameReward);
@@ -99,7 +97,7 @@ export function FlipGame() {
     <div className="screen stack">
       <div className="between">
         <h1>Turtle Flip 🎴</h1>
-        <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
+        <BackButton />
       </div>
 
       {/* meditative breathing cue */}

@@ -1,6 +1,18 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { DayState } from "@/types";
+import { ChevronLeftIcon } from "@/components/icons";
+
+/** Back chip with a real chevron icon (replaces the "‹ Back" text glyph). */
+export function BackButton({ onClick, label = "Back", style }: { onClick?: () => void; label?: string; style?: CSSProperties }) {
+  const nav = useNavigate();
+  return (
+    <button className="chip outline icon-chip" style={style} onClick={onClick ?? (() => nav(-1))} aria-label={label}>
+      <ChevronLeftIcon size={16} /> {label}
+    </button>
+  );
+}
+
 
 export function Card({ children, className = "", onClick, style }: { children: ReactNode; className?: string; onClick?: () => void; style?: CSSProperties }) {
   return (

@@ -5,6 +5,7 @@ import { useFeedback } from "@/components/feedback";
 import { Mascot, type MascotMood } from "@/components/Mascot";
 import { StreakRing } from "@/components/StreakRing";
 import { Card, PillButton, TurtbuxChip, TurtlePhoto, formatNum } from "@/components/common";
+import { GearIcon, BookIcon } from "@/components/icons";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { FACT_OF_DAY } from "@/logic/turtbux";
 import { todayKey, prettyDate } from "@/logic/dates";
@@ -243,8 +244,8 @@ export function Home() {
 
       <div className="between">
         <PillButton variant="secondary" small onClick={() => nav("/calendar")}>📅 Calendar</PillButton>
-        <PillButton variant="secondary" small onClick={() => nav("/feed")}>📔 Diary</PillButton>
-        <PillButton variant="secondary" small onClick={() => nav("/settings")}>⚙️ Settings</PillButton>
+        <PillButton variant="secondary" small onClick={() => nav("/feed")}><BookIcon size={16} /> Diary</PillButton>
+        <PillButton variant="secondary" small onClick={() => nav("/settings")}><GearIcon size={16} /> Settings</PillButton>
       </div>
     </div>
   );

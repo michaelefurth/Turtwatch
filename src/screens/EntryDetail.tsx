@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
-import { Card, PillButton, StateBadge, TurtlePhoto } from "@/components/common";
+import { Card, PillButton, StateBadge, TurtlePhoto, BackButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { moodEmoji } from "@/components/MoodPicker";
 import { prettyDate, todayKey } from "@/logic/dates";
@@ -41,7 +41,7 @@ export function EntryDetail() {
   return (
     <div className="screen stack">
       <div className="between">
-        <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
+        <BackButton />
         <StateBadge state={entry.state} />
       </div>
 
@@ -68,7 +68,13 @@ export function EntryDetail() {
               {entry.tags.map((t) => <span key={t} className="chip">#{t}</span>)}
             </div>
           )}
-          {entry.location && <div className="muted">📍 {entry.location.label}</div>}
+          {entry.location && (
+            <div className="muted">📍 {entry.location.label}
+              {entry.location.lat != null && (
+                <> · <a href={`https://www.openstreetmap.org/?mlat=${entry.location.lat}&mlon=${entry.location.lng}#map=15/${entry.location.lat}/${entry.location.lng}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary-deep)", fontWeight: 700 }}>view on map</a></>
+              )}
+            </div>
+          )}
         </Card>
       )}
 

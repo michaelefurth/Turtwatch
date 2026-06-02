@@ -1,21 +1,25 @@
 import { NavLink } from "react-router-dom";
+import type { ComponentType, SVGProps } from "react";
+import { HomeIcon, CalendarIcon, BookIcon, BagIcon, CardsIcon, TurtleIcon } from "@/components/icons";
 
-const TABS = [
-  { to: "/", icon: "🏠", label: "Home", end: true },
-  { to: "/calendar", icon: "📅", label: "Calendar" },
-  { to: "/feed", icon: "📔", label: "Diary" },
-  { to: "/shop", icon: "🛍️", label: "Shop" },
-  { to: "/facts", icon: "🃏", label: "Cards" },
-  { to: "/profile", icon: "🐢", label: "Profile" },
+type Tab = { to: string; Icon: ComponentType<SVGProps<SVGSVGElement> & { size?: number }>; label: string; end?: boolean };
+
+const TABS: Tab[] = [
+  { to: "/", Icon: HomeIcon, label: "Home", end: true },
+  { to: "/calendar", Icon: CalendarIcon, label: "Calendar" },
+  { to: "/feed", Icon: BookIcon, label: "Diary" },
+  { to: "/shop", Icon: BagIcon, label: "Shop" },
+  { to: "/facts", Icon: CardsIcon, label: "Cards" },
+  { to: "/profile", Icon: TurtleIcon, label: "Profile" },
 ];
 
 export function TabBar() {
   return (
     <nav className="tabbar" aria-label="Main navigation">
-      {TABS.map((t) => (
-        <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => (isActive ? "active" : "")}>
-          <span className="ic" aria-hidden>{t.icon}</span>
-          {t.label}
+      {TABS.map(({ to, Icon, label, end }) => (
+        <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "active" : "")}>
+          <span className="ic"><Icon size={22} /></span>
+          {label}
         </NavLink>
       ))}
     </nav>

@@ -160,7 +160,10 @@ a:focus-visible {
 .pill.secondary { background: color-mix(in srgb, var(--primary) 20%, var(--surface)); color: var(--primary-deep); box-shadow: var(--hairline); }
 .pill.ghost { background: transparent; color: var(--primary-deep); box-shadow: none; min-height: 44px; }
 .pill.danger { background: linear-gradient(180deg, color-mix(in srgb, var(--danger) 88%, #fff), var(--danger)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 8px 18px -6px color-mix(in srgb, var(--danger) 50%, transparent); }
-.pill.small { padding: 10px 16px; font-size: 14px; width: auto; min-height: 40px; }
+.pill.small { padding: 10px 16px; font-size: 14px; width: auto; min-height: 44px; }
+/* icon + label alignment inside pills */
+.pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.pill svg, .chip svg, .tabbar a svg { flex-shrink: 0; }
 
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -175,6 +178,9 @@ a:focus-visible {
 /* a clickable chip (filter/toggle) gets a soft press */
 button.chip { transition: transform 0.12s var(--ease), background 0.15s ease, box-shadow 0.15s ease; }
 button.chip:active { transform: scale(0.94); }
+/* interactive chips/links meet the 44px minimum touch target */
+button.chip, a.chip { min-height: 44px; }
+.icon-chip { gap: 6px; }
 
 /* ---------- form ---------- */
 .input, .textarea, .select {

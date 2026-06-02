@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
-import { Card, PillButton, formatNum } from "@/components/common";
+import { Card, PillButton, formatNum, BackButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
@@ -86,7 +86,7 @@ export function MissedDayRepair() {
 
   return (
     <div className="screen stack">
-      <button className="chip outline" style={{ alignSelf: "flex-start" }} onClick={() => { if (!generating) nav(-1); }}>‹ Back</button>
+      <BackButton style={{ alignSelf: "flex-start" }} onClick={() => { if (!generating) nav(-1); }} />
 
       <Card className="center">
         <div style={{ fontSize: 56 }}>😴</div>

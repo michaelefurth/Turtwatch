@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { User } from "@supabase/supabase-js";
 import { useStore, getPersistableState, isCloudMode } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
-import { Card, PillButton } from "@/components/common";
+import { Card, PillButton, BackButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import * as cloud from "@/lib/cloud";
 
@@ -30,7 +30,7 @@ export function Account() {
       <div className="screen stack">
         <div className="between">
           <h1>Account ☁️</h1>
-          <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
+          <BackButton />
         </div>
         <Card className="center stack">
           <div style={{ fontSize: 44 }}>🐢💾</div>
@@ -119,7 +119,7 @@ export function Account() {
     <div className="screen stack">
       <div className="between">
         <h1>Account ☁️</h1>
-        <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
+        <BackButton />
       </div>
 
       {!user ? (

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Card, PillButton } from "@/components/common";
+import { CameraIcon, ImageIcon, PinIcon } from "@/components/icons";
 import { MoodPicker } from "@/components/MoodPicker";
 import { TagInput } from "@/components/TagInput";
 import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
@@ -44,6 +45,9 @@ export function DailyUpload() {
   const [tags, setTags] = useState<string[]>(existing?.tags ?? []);
   const [useLocation, setUseLocation] = useState(!!existing?.location);
   const [locationLabel, setLocationLabel] = useState(existing?.location?.label ?? "");
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | undefined>(
+    existing?.location?.lat != null ? { lat: existing.location.lat, lng: existing.location.lng! } : undefined,
+  );
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const receiptRef = useSheetFocus<HTMLDivElement>(!!receipt, () => nav("/"));
 
@@ -61,6 +65,21 @@ export function DailyUpload() {
     setPhotoSource(source);
   };
 
+  const locateMe = () => {
+    if (!navigator.geolocation) { toast("Location isn't available here", "📍"); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = +pos.coords.latitude.toFixed(5);
+        const lng = +pos.coords.longitude.toFixed(5);
+        setCoords({ lat, lng });
+        if (!locationLabel.trim()) setLocationLabel(`${lat}, ${lng}`);
+        toast("Pinned your spot 📍", "🐢");
+      },
+      () => toast("Couldn't get location — type it instead", "📍"),
+      { enableHighAccuracy: false, timeout: 8000 },
+    );
+  };
+
   const onSave = () => {
     if (!photoUrl) {
       toast("Pick a turtle photo first! 🐢", "📸");
@@ -73,7 +92,9 @@ export function DailyUpload() {
       mood,
       notes: notes.trim() || undefined,
       tags,
-      location: useLocation && locationLabel.trim() ? { label: locationLabel.trim() } : undefined,
+      location: useLocation && (locationLabel.trim() || coords)
+        ? { label: locationLabel.trim() || (coords ? `${coords.lat}, ${coords.lng}` : ""), ...(coords ?? {}) }
+        : undefined,
     };
     // A new turtle is only ever created for TODAY. Editing (today or a past day)
     // routes through updateEntry so the base upload reward can't be re-farmed.
@@ -123,8 +144,8 @@ export function DailyUpload() {
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPickFile("library")} />
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={onPickFile("camera")} />
         <div className="row mt">
-          <PillButton variant="secondary" small onClick={() => cameraRef.current?.click()}>📷 Take photo</PillButton>
-          <PillButton variant="secondary" small onClick={() => fileRef.current?.click()}>📂 Choose photo</PillButton>
+          <PillButton variant="secondary" small onClick={() => cameraRef.current?.click()}><CameraIcon size={16} /> Take photo</PillButton>
+          <PillButton variant="secondary" small onClick={() => fileRef.current?.click()}><ImageIcon size={16} /> Choose photo</PillButton>
         </div>
         <h3 className="mt-sm">…or pick a sample turtle</h3>
         <div className="row wrap gap8">
@@ -164,10 +185,14 @@ export function DailyUpload() {
         <div>
           <div className="between">
             <label className="field" style={{ margin: 0 }}>📍 Add location</label>
-            <button className={`chip ${useLocation ? "selected" : "outline"}`} onClick={() => setUseLocation((v) => !v)}>{useLocation ? "On" : "Off"}</button>
+            <button className={`chip ${useLocation ? "selected" : "outline"}`} aria-pressed={useLocation} onClick={() => setUseLocation((v) => !v)}>{useLocation ? "On" : "Off"}</button>
           </div>
           {useLocation && (
-            <input className="input mt-sm" placeholder="Backyard pond" value={locationLabel} onChange={(e) => setLocationLabel(e.target.value)} />
+            <>
+              <input className="input mt-sm" placeholder="Backyard pond" value={locationLabel} onChange={(e) => setLocationLabel(e.target.value)} />
+              <button className="chip outline icon-chip mt-sm" onClick={locateMe}><PinIcon size={15} /> Use my location</button>
+              {coords && <span className="muted" style={{ fontSize: 11, display: "block", marginTop: 4 }}>📌 {coords.lat}, {coords.lng}</span>}
+            </>
           )}
         </div>
       </Card>

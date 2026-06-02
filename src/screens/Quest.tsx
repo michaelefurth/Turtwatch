@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
-import { Card, PillButton, EmptyState } from "@/components/common";
+import { Card, PillButton, EmptyState, BackButton } from "@/components/common";
 import {
   STEPS_PER_LEG, TASK_DAILY_CAP, LEG_BONUS, destinationFor, lastReached, progressInLeg,
   reachedCount, questStreakDisplay, type Landmark,
@@ -15,7 +14,6 @@ import { useSheetFocus } from "@/hooks/useSheetFocus";
 const SUGGESTIONS = ["Upload a turtle 📸", "Read a turtle fact 📖", "Do a mantra 🧘", "Drink some water 💧", "Take a short walk 🚶", "Tidy one thing 🧹", "Stretch for a minute 🤸", "Message a friend 💌"];
 
 export function Quest() {
-  const nav = useNavigate();
   const { celebrate, toast } = useFeedback();
   const quest = useStore((s) => s.quest);
   const ensureDaily = useStore((s) => s.ensureQuestDaily);
@@ -73,7 +71,7 @@ export function Quest() {
     <div className="screen stack">
       <div className="between">
         <h1>Turtle Trek 🗺️</h1>
-        <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
+        <BackButton />
       </div>
 
       {/* journey map */}

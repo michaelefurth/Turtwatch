@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
 import { Card } from "@/components/common";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/icons";
 import { monthGrid, monthLabel, todayKey, isFuture } from "@/logic/dates";
 import { completionThisMonth } from "@/store/selectors";
 import type { DayState } from "@/types";
@@ -56,9 +57,9 @@ export function CalendarScreen() {
 
       <Card>
         <div className="between" style={{ marginBottom: 10 }}>
-          <button className="chip outline" aria-label="Previous month" onClick={() => move(-1)}>‹</button>
+          <button className="chip outline icon-chip" aria-label="Previous month" onClick={() => move(-1)}><ChevronLeftIcon size={18} /></button>
           <b style={{ fontSize: 16 }}>{monthLabel(year, month0)}</b>
-          <button className="chip outline" aria-label="Next month" onClick={() => move(1)}>›</button>
+          <button className="chip outline icon-chip" aria-label="Next month" onClick={() => move(1)}><ChevronRightIcon size={18} /></button>
         </div>
 
         <div className="cal-head">

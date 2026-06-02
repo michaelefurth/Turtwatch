@@ -62,3 +62,18 @@ export function clearState(): void {
 export function exportState(state: AppState): string {
   return JSON.stringify({ __v: SCHEMA_VERSION, state }, null, 2);
 }
+
+/** Parse an exported backup (envelope or bare state) into a usable AppState,
+ *  filling any missing fields with defaults. Returns null if it isn't one. */
+export function parseImportedState(json: string): AppState | null {
+  try {
+    const parsed = JSON.parse(json) as Persisted | AppState;
+    const st = (parsed && typeof parsed === "object" && "state" in parsed ? (parsed as Persisted).state : parsed) as AppState;
+    if (st && typeof st === "object" && "entries" in st && "wallet" in st) {
+      return { ...makeInitialState(), ...st };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
-import { Card, PillButton } from "@/components/common";
+import { Card, PillButton, BackButton } from "@/components/common";
 import { shuffledMantras, FOCUS_OPTIONS, MANTRA_REWARD, MANTRA_DAILY_CAP } from "@/logic/mantras";
 import { todayKey } from "@/logic/dates";
 import { pick, MANTRA_DONE } from "@/lib/variety";
 
 export function Mantras() {
-  const nav = useNavigate();
   const { celebrate, toast } = useFeedback();
   const award = useStore((s) => s.awardMantraReward);
   const mantraState = useStore((s) => s.mantra);
@@ -81,7 +79,7 @@ export function Mantras() {
     <div className="screen stack">
       <div className="between">
         <h1>Turtle Mantras 🧘</h1>
-        <button className="chip outline" onClick={() => nav(-1)}>‹ Back</button>
+        <BackButton />
       </div>
 
       <Card className="center stack" style={{ alignItems: "center" }}>
