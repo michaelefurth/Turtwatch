@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams, Navigate } from "react-router-dom";
-import { useStore } from "@/store/useStore";
+import { useStore, isCloudMode } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
+import { setEntryShared, friendErr } from "@/lib/friends";
 import { Card, PillButton, StateBadge, TurtlePhoto, BackButton } from "@/components/common";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { moodEmoji } from "@/components/MoodPicker";
@@ -19,6 +20,20 @@ export function EntryDetail() {
   const inventory = useStore((s) => s.inventory);
   const del = useStore((s) => s.deleteEntry);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [shared, setShared] = useState(!!entry?.shared);
+  const [sharing, setSharing] = useState(false);
+
+  const toggleShare = async () => {
+    const next = !shared;
+    setShared(next); setSharing(true);
+    try {
+      await setEntryShared(date, next);
+      toast(next ? "Shared with your friends 🐢" : "No longer shared", next ? "💚" : "🐢");
+    } catch (e) {
+      setShared(!next); // revert
+      toast(friendErr(e), "😢");
+    } finally { setSharing(false); }
+  };
 
   // preview the streak impact of deleting this entry
   const streakDelta = useMemo(() => {
@@ -86,6 +101,12 @@ export function EntryDetail() {
       )}
 
       {entry.earnedTurtbux > 0 && <span className="chip gold" style={{ alignSelf: "flex-start" }}>Earned +{entry.earnedTurtbux} 🪙</span>}
+
+      {isCloudMode() && entry.photoUrl && (
+        <button className={`chip ${shared ? "selected" : "outline"}`} style={{ alignSelf: "flex-start" }} aria-pressed={shared} disabled={sharing} onClick={toggleShare}>
+          {shared ? "✓ Shared with friends" : "👋 Share with friends"}
+        </button>
+      )}
 
       <div className="stack mt">
         <PillButton variant="secondary" onClick={() => nav(date === todayKey() ? "/upload" : `/upload?date=${date}`)}>

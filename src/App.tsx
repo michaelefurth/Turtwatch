@@ -20,6 +20,7 @@ import { MissedDayRepair } from "@/screens/MissedDayRepair";
 import { Shop } from "@/screens/Shop";
 import { FactsLibrary } from "@/screens/FactsLibrary";
 import { Profile } from "@/screens/Profile";
+import { Friends } from "@/screens/Friends";
 import { Settings } from "@/screens/Settings";
 
 function RequireOnboarding({ children }: { children: ReactElement }) {
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="/shop" element={<Shop />} />
             <Route path="/facts" element={<FactsLibrary />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/friends" element={<Friends />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

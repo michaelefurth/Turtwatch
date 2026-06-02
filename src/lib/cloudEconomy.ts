@@ -98,6 +98,7 @@ export async function loadCloudState(): Promise<AppState | null> {
       displayName: (u as { display_name?: string }).display_name ?? "Pond Keeper",
       mascot: ((u as { mascot?: "turtley" | "shelldon" }).mascot ?? "turtley"),
       mascotName: (u as { mascot_name?: string }).mascot_name ?? undefined,
+      username: (u as { username?: string }).username ?? undefined,
       themeId: (u as { theme_id?: string }).theme_id ?? "pond_mint",
       timezone: (u as { timezone?: string }).timezone ?? base.profile.timezone,
       isPremium: (u as { is_premium?: boolean }).is_premium ?? false,

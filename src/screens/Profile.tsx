@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useStore } from "@/store/useStore";
+import { useStore, isCloudMode } from "@/store/useStore";
 import { Mascot } from "@/components/Mascot";
 import { Card, formatNum } from "@/components/common";
 import { GearIcon } from "@/components/icons";
@@ -94,6 +94,20 @@ export function Profile() {
           </div>
         )}
       </Card>
+
+      {isCloudMode() && (
+        <Card className="flat" onClick={() => nav("/friends")}>
+          <div className="between">
+            <div>
+              <b>Friends 👋</b>
+              <div className="muted" style={{ fontSize: 13 }}>
+                {profile.username ? `You're @${profile.username} — add pals & share turtles` : "Claim your @handle and add pond pals"}
+              </div>
+            </div>
+            <span className="chip">Open →</span>
+          </div>
+        </Card>
+      )}
 
       <h2 style={{ marginBottom: 0 }}>Stats</h2>
       <div className="stat-grid">

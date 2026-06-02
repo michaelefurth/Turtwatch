@@ -57,6 +57,7 @@ export interface TurtleEntry {
   notes?: string;
   tags: string[];
   location?: { lat?: number; lng?: number; label: string };
+  shared?: boolean; // visible to friends (cloud only)
   earnedTurtbux: number;
   /** which one-time bonuses have already been paid for this entry */
   bonuses: { note?: boolean; meta?: boolean };
@@ -156,6 +157,7 @@ export interface UserProfile {
   displayName: string;
   mascot: Mascot;
   mascotName?: string;
+  username?: string; // public @handle for friends (cloud only)
   themeId: string;
   timezone: string;
   isPremium: boolean;
