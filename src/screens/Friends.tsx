@@ -14,6 +14,8 @@ import {
   type Friend, type PendingRequest, type OutgoingRequest, type FriendTurtle, type Cheer, type GroupGoal,
 } from "@/lib/friends";
 
+const handleOf = (u: string | null) => (u ? `@${u}` : "no handle yet");
+
 export function Friends() {
   const { toast } = useFeedback();
   const profile = useStore((s) => s.profile);
@@ -30,6 +32,7 @@ export function Friends() {
   const [goalTarget, setGoalTarget] = useState(20);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [view, setView] = useState<{ friend: Friend; turtles: FriendTurtle[] } | null>(null);
   const viewRef = useSheetFocus<HTMLDivElement>(!!view, () => setView(null));
 
@@ -43,7 +46,8 @@ export function Friends() {
       setOutgoing(reqs.outgoing);
       setCheers(ch.cheers);
       setGoals(gg);
-    } catch { /* offline — keep what we have */ }
+      setLoadError(false);
+    } catch { setLoadError(true); }
     finally { setLoading(false); }
   };
 
@@ -88,6 +92,7 @@ export function Friends() {
 
   const unfriend = (f: Friend) => run(async () => {
     await removeFriend(f.id);
+    setView(null); // close the sheet only after the remove actually succeeds
     toast("Friend removed", "🐢");
     await refresh();
   });
@@ -100,6 +105,7 @@ export function Friends() {
   const cheer = (friendId: string, emoji: string) => run(async () => {
     await sendCheer(friendId, emoji);
     toast(`Cheer sent! ${emoji}`, "💌");
+    await refresh();
   });
 
   const startGoal = (friendId: string) => run(async () => {
@@ -159,7 +165,7 @@ export function Friends() {
           <h3 style={{ margin: 0 }}>Requests</h3>
           {incoming.map((r) => (
             <div key={r.id} className="between">
-              <div className="row"><Mascot mascot={r.mascot} size={36} /><div><b>{r.displayName}</b><div className="muted" style={{ fontSize: 12 }}>@{r.username}</div></div></div>
+              <div className="row"><Mascot mascot={r.mascot} size={36} /><div><b>{r.displayName}</b><div className="muted" style={{ fontSize: 12 }}>{handleOf(r.username)}</div></div></div>
               <div className="row" style={{ gap: 6 }}>
                 <button className="chip selected" disabled={busy} onClick={() => respond(r.id, true)}>Accept</button>
                 <button className="chip outline" disabled={busy} onClick={() => respond(r.id, false)}>Decline</button>
@@ -221,6 +227,8 @@ export function Friends() {
       <div className="between"><h2 style={{ margin: 0 }}>Pond pals</h2>{friends.length > 0 && <span className="chip">{friends.length}</span>}</div>
       {loading ? (
         <p className="muted center">Loading…</p>
+      ) : loadError && friends.length === 0 ? (
+        <Card className="center stack"><div style={{ fontSize: 40 }}>🐢📡</div><b>Couldn't reach the pond</b><p className="muted" style={{ marginTop: 0 }}>Check your connection and try again.</p><PillButton small variant="secondary" onClick={() => { setLoading(true); refresh(); }}>Retry</PillButton></Card>
       ) : friends.length === 0 ? (
         <Card className="center stack"><div style={{ fontSize: 40 }}>🐢🫧</div><b>No pals yet</b><p className="muted" style={{ marginTop: 0 }}>Share your @handle and send a request above.</p></Card>
       ) : (
@@ -235,7 +243,7 @@ export function Friends() {
                 )}
                 <div className="grow" style={{ minWidth: 0 }}>
                   <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{f.displayName}</b>
-                  <div className="muted" style={{ fontSize: 12 }}>@{f.username}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{handleOf(f.username)}</div>
                   <div className="row gap8" style={{ marginTop: 4 }}>
                     <span className="chip">🔥 {f.streak}</span>
                     <span className="chip">🗺️ {f.trekStreak}</span>
@@ -250,7 +258,7 @@ export function Friends() {
 
       {outgoing.length > 0 && (
         <p className="muted center" style={{ fontSize: 12 }}>
-          Pending sent: {outgoing.map((o) => `@${o.username}`).join(", ")}
+          Pending sent: {outgoing.map((o) => handleOf(o.username)).join(", ")}
         </p>
       )}
 
@@ -260,7 +268,7 @@ export function Friends() {
           <div className="scrim" onClick={() => setView(null)}>
             <motion.div ref={viewRef} className="sheet" role="dialog" aria-modal="true" aria-labelledby="friend-title" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}>
               <div className="between">
-                <div className="row"><Mascot mascot={view.friend.mascot} size={44} /><div><h2 id="friend-title" style={{ margin: 0 }}>{view.friend.displayName}</h2><span className="muted" style={{ fontSize: 12 }}>@{view.friend.username} · 🔥 {view.friend.streak} · 🗺️ {view.friend.trekStreak}</span></div></div>
+                <div className="row"><Mascot mascot={view.friend.mascot} size={44} /><div><h2 id="friend-title" style={{ margin: 0 }}>{view.friend.displayName}</h2><span className="muted" style={{ fontSize: 12 }}>{handleOf(view.friend.username)} · 🔥 {view.friend.streak} · 🗺️ {view.friend.trekStreak}</span></div></div>
               </div>
               <div className="row wrap gap8" style={{ marginTop: 12 }}>
                 <span className="muted" style={{ fontSize: 12, fontWeight: 800, alignSelf: "center" }}>Send a cheer:</span>
@@ -291,7 +299,7 @@ export function Friends() {
                   ))}
                 </div>
               )}
-              <div className="mt"><PillButton variant="ghost" onClick={() => { setView(null); unfriend(view.friend); }}>Remove friend</PillButton></div>
+              <div className="mt"><PillButton variant="ghost" disabled={busy} onClick={() => unfriend(view.friend)}>Remove friend</PillButton></div>
             </motion.div>
           </div>
         )}

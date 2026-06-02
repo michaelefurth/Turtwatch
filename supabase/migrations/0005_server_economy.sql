@@ -240,7 +240,10 @@ begin
 end $$;
 
 -- ---------- booster packs ----------
-create or replace function srv_open_booster(p_paid boolean, p_date date) returns jsonb
+-- p_idempotency makes a paid open network-retry-safe (a timed-out retry won't
+-- double-charge). p_date is kept for signature compatibility.
+drop function if exists srv_open_booster(boolean, date);
+create or replace function srv_open_booster(p_paid boolean, p_date date, p_idempotency text default null) returns jsonb
   language plpgsql security definer set search_path = public as $$
 declare
   v_user uuid := auth.uid(); v_balance int; v_results jsonb := '[]'::jsonb; v_total int := 0;
@@ -249,7 +252,7 @@ begin
   if v_user is null then raise exception 'AUTH_REQUIRED'; end if;
   v_today := (now() at time zone coalesce((select timezone from app_user where id = v_user), 'UTC'))::date;
   if p_paid then
-    v_balance := apply_turtbux(-60, 'booster_open', 'booster', null, null);
+    v_balance := apply_turtbux(-60, 'booster_open', 'booster', null, coalesce(p_idempotency, 'booster:' || gen_random_uuid()::text));
   else
     -- atomic free-once-per-day: only one concurrent caller flips the date
     update app_user set last_booster_on = v_today where id = v_user and last_booster_on is distinct from v_today;
@@ -263,12 +266,15 @@ begin
     select * into v_card from fact_card where rarity = v_rarity order by random() limit 1;
     if not found then select * into v_card from fact_card order by random() limit 1; end if;
 
-    -- atomic new-vs-dupe: xmax=0 means this row was freshly INSERTed (not updated)
+    -- explicit new-vs-dupe pre-check (robust vs the xmax internal detail)
+    select not exists (select 1 from user_card where user_id = v_user and card_id = v_card.id) into v_isNew;
     insert into user_card (user_id, card_id, copies) values (v_user, v_card.id, 1)
-      on conflict (user_id, card_id) do update set copies = user_card.copies + 1
-      returning (xmax = 0) into v_isNew;
+      on conflict (user_id, card_id) do update set copies = user_card.copies + 1;
 
-    v_reward := case when v_isNew then (case v_card.rarity when 'common' then 3 when 'rare' then 8 when 'epic' then 16 else 35 end) else 1 end;
+    -- new cards pay full rarity value; duplicates pay a smaller rarity-scaled amount
+    v_reward := case when v_isNew
+      then (case v_card.rarity when 'common' then 3 when 'rare' then 8 when 'epic' then 16 else 35 end)
+      else (case v_card.rarity when 'common' then 1 when 'rare' then 2 when 'epic' then 5 else 10 end) end;
     v_total := v_total + v_reward;
     v_results := v_results || jsonb_build_object('id', v_card.id, 'isNew', v_isNew);
   end loop;
@@ -404,7 +410,7 @@ grant execute on function
   srv_delete_entry(date), srv_update_entry(date, text, mood_t, text, text[], text),
   srv_login_bonus(date), srv_fact_of_day(date),
   srv_minigame(date, integer), srv_mantra(date, integer),
-  srv_toggle_task(uuid, date), srv_open_booster(boolean, date),
+  srv_toggle_task(uuid, date), srv_open_booster(boolean, date, text),
   srv_import_state(jsonb),
   read_fact(text), purchase_shop_item(text, text), shield_day(date)
   to authenticated;

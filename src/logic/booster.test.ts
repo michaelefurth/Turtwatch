@@ -29,9 +29,12 @@ describe("booster pulls", () => {
 });
 
 describe("cardReward", () => {
-  it("rewards new cards by rarity, dupes give dust", () => {
+  it("rewards new cards by rarity, dupes give rarity-scaled dust", () => {
     expect(cardReward("legendary", true)).toBe(RARITY.legendary.reward);
     expect(cardReward("common", true)).toBe(RARITY.common.reward);
-    expect(cardReward("legendary", false)).toBe(1);
+    // duplicates pay a smaller, rarity-scaled amount (not a flat 1)
+    expect(cardReward("legendary", false)).toBe(10);
+    expect(cardReward("common", false)).toBe(1);
+    expect(cardReward("legendary", false)).toBeLessThan(cardReward("legendary", true));
   });
 });

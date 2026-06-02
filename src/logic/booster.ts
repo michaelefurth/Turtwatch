@@ -6,6 +6,9 @@ import { ALL_FACT_CARDS, RARITY, type FactCardDef, type CardRarity } from "@/dat
 export const BOOSTER_SIZE = 3;
 export const BOOSTER_COST = 60; // Turtbux to buy an extra pack (a sink)
 export const DUPLICATE_REWARD = 1;
+// duplicates pay a smaller, rarity-scaled amount so late-game packs aren't a
+// pure sink (mirrors srv_open_booster's dupe rewards)
+const DUPE_REWARD: Record<CardRarity, number> = { common: 1, rare: 2, epic: 5, legendary: 10 };
 
 // Two-stage pull so the stated 60/25/12/3 rarity rates actually hold:
 // (1) pick a rarity by its weight, (2) sample uniformly within that rarity.
@@ -34,7 +37,7 @@ export function pullBooster(rng: () => number = Math.random): FactCardDef[] {
 }
 
 export function cardReward(rarity: CardRarity, isNew: boolean): number {
-  return isNew ? RARITY[rarity].reward : DUPLICATE_REWARD;
+  return isNew ? RARITY[rarity].reward : DUPE_REWARD[rarity];
 }
 
 export const TOTAL_CARDS = ALL_FACT_CARDS.length;

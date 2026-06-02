@@ -40,6 +40,7 @@ export interface TurtleEntryRow {
   earned_turtbux: number;
   bonus_note: boolean;
   bonus_meta: boolean;
+  shared: boolean;
   created_at: string;
   updated_at: string;
 }

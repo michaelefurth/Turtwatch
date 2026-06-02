@@ -78,6 +78,10 @@ begin
   delete from friendship
    where (requester = v_user and addressee = p_friend)
       or (requester = p_friend and addressee = v_user);
+  -- also tear down any shared goals the two were in together (no orphan goals)
+  delete from group_goal g
+   where exists (select 1 from group_goal_member m where m.goal_id = g.id and m.user_id = v_user)
+     and exists (select 1 from group_goal_member m where m.goal_id = g.id and m.user_id = p_friend);
   return jsonb_build_object('ok', true);
 end $$;
 

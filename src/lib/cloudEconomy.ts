@@ -136,15 +136,18 @@ export async function loadCloudState(): Promise<AppState | null> {
 }
 
 /** Server-authoritative booster open (cloud mode): the SERVER rolls the cards. */
-export async function cloudOpenBooster(paid: boolean): Promise<{ ok: boolean; reason?: string; cards?: { card: import("@/data/factCards").FactCardDef; isNew: boolean }[]; rewarded?: number }> {
+export async function cloudOpenBooster(paid: boolean): Promise<{ ok: boolean; reason?: string; cards?: { card: import("@/data/factCards").FactCardDef; isNew: boolean }[]; rewarded?: number; dropped?: number }> {
   const sb = getSupabase();
   if (!sb) return { ok: false, reason: "Cloud not configured" };
-  const { data, error } = await sb.rpc("srv_open_booster", { p_paid: paid, p_date: todayKey() });
+  // idempotency key makes a timed-out paid open retry-safe (no double charge)
+  const { data, error } = await sb.rpc("srv_open_booster", { p_paid: paid, p_date: todayKey(), p_idempotency: paid ? `booster:${uid()}` : null });
   if (error) return { ok: false, reason: error.message.includes("NO_FREE_BOOSTER") ? "Your free booster is tomorrow!" : error.message };
   const rows = ((data as { cards?: { id: string; isNew: boolean }[] })?.cards) ?? [];
   const cards = rows.map((r) => ({ card: factCardById(r.id)!, isNew: r.isNew })).filter((c) => c.card);
   await rehydrate(); // collection + wallet are now authoritative server-side
-  return { ok: true, cards, rewarded: (data as { rewarded?: number })?.rewarded };
+  // if the server rolled an id this client build doesn't know, surface it rather
+  // than silently handing back fewer than 3 cards
+  return { ok: true, cards, rewarded: (data as { rewarded?: number })?.rewarded, dropped: rows.length - cards.length };
 }
 
 /** Re-hydrate the local store from the server (used as rollback / refresh). */

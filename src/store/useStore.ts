@@ -92,6 +92,7 @@ interface Actions {
   updateNotifications: (n: Partial<NotificationSettings>) => void;
   updateProfile: (p: Partial<UserProfile>) => void;
   markReminderFired: () => void;
+  setSharedFlag: (date: string, shared: boolean) => void;
   setCloud: (patch: Partial<NonNullable<AppState["cloud"]>>) => void;
   hydrateState: (state: AppState) => void;
   applyServerWallet: (w: { balance: number; lifetimeEarned?: number; lifetimeSpent?: number }) => void;
@@ -586,6 +587,9 @@ export const useStore = create<Store>((set, get) => {
     openBooster: (paid) => {
       const s = get();
       const today = todayKey();
+      // cloud mode is server-authoritative — callers must use cloudOpenBooster.
+      // Guard so a stray call can't double-roll (local pull + server pull).
+      if (isCloudMode()) return { ok: false, reason: "Use cloud booster" };
       const freeAvailable = s.lastBoosterOn !== today;
       if (!paid && !freeAvailable) return { ok: false, reason: "Your free booster is tomorrow!" };
       if (paid && s.wallet.balance < BOOSTER_COST) return { ok: false, reason: "Not enough Turtbux." };
@@ -608,13 +612,21 @@ export const useStore = create<Store>((set, get) => {
       if (!paid) patch.lastBoosterOn = today;
       const { achievements } = evaluate({ ...s, collection, ...money });
       commit({ ...patch, achievements });
-      reconciler?.("booster", { paid });
+      // NOTE: no reconciler here — cloud mode never reaches this (guarded above);
+      // cloud booster opens go through cloudOpenBooster (server rolls the cards).
       return { ok: true, cards, rewarded };
     },
 
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
     markReminderFired: () => commit({ lastReminderOn: todayKey() }),
+    // local-only patch of an entry's share flag (server write happens in the UI)
+    setSharedFlag: (date, shared) => {
+      const s = get();
+      const e = s.entries[date];
+      if (!e) return;
+      commit({ entries: { ...s.entries, [date]: { ...e, shared } } });
+    },
     setCloud: (patch) => commit({ cloud: { ...(get().cloud ?? { autoBackup: false }), ...patch } }),
 
     hydrateState: (state) => {

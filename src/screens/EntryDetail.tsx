@@ -20,6 +20,7 @@ export function EntryDetail() {
   const entry = entries[date];
   const inventory = useStore((s) => s.inventory);
   const del = useStore((s) => s.deleteEntry);
+  const setSharedFlag = useStore((s) => s.setSharedFlag);
   const [confirmDel, setConfirmDel] = useState(false);
   const [shared, setShared] = useState(!!entry?.shared);
   const [sharing, setSharing] = useState(false);
@@ -29,6 +30,7 @@ export function EntryDetail() {
     setShared(next); setSharing(true);
     try {
       await setEntryShared(date, next);
+      setSharedFlag(date, next); // persist to the store so it survives re-mount
       toast(next ? "Shared with your friends 🐢" : "No longer shared", next ? "💚" : "🐢");
     } catch (e) {
       setShared(!next); // revert

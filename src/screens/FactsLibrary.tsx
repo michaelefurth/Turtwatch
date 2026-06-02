@@ -9,6 +9,10 @@ import { BOOSTER_COST, TOTAL_CARDS } from "@/logic/booster";
 import { POOLS } from "@/lib/variety";
 import { todayKey } from "@/logic/dates";
 import { useSheetFocus } from "@/hooks/useSheetFocus";
+import { FACTS } from "@/data/facts";
+import type { TurtleFact } from "@/types";
+
+const EMPTY_READ: Record<string, string> = {};
 
 const FILTERS: { id: CardRarity | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -28,15 +32,30 @@ export function FactsLibrary() {
   const balance = useStore((s) => s.wallet.balance);
   const lastBoosterOn = useStore((s) => s.lastBoosterOn);
   const openBooster = useStore((s) => s.openBooster);
+  const factsRead = useStore((s) => s.factsRead) ?? EMPTY_READ;
+  const readFact = useStore((s) => s.readFact);
 
   const [filter, setFilter] = useState<CardRarity | "all">("all");
   const [reveal, setReveal] = useState<{ card: FactCardDef; isNew: boolean }[] | null>(null);
   const [detail, setDetail] = useState<FactCardDef | null>(null);
+  const [factView, setFactView] = useState<TurtleFact | null>(null);
   const revealRef = useSheetFocus<HTMLDivElement>(!!reveal, () => setReveal(null));
   const detailRef = useSheetFocus<HTMLDivElement>(!!detail, () => setDetail(null));
+  const factRef = useSheetFocus<HTMLDivElement>(!!factView, () => setFactView(null));
 
   const collectedCount = Object.keys(collection).length;
+  const complete = collectedCount >= TOTAL_CARDS;
+  const factsReadCount = FACTS.filter((f) => factsRead[f.id]).length;
   const freeReady = lastBoosterOn !== todayKey();
+
+  const openFact = (f: TurtleFact) => {
+    const already = !!factsRead[f.id];
+    setFactView(f);
+    if (!already) {
+      const reward = readFact(f.id);
+      if (reward > 0) { celebrate(POOLS.shop); toast(`New fact! +${reward} Turtbux 📖`, "🐢"); }
+    }
+  };
 
   const shown = useMemo(
     () => ALL_FACT_CARDS.filter((c) => filter === "all" || c.rarity === filter),
@@ -50,9 +69,11 @@ export function FactsLibrary() {
       toast(res.reason ?? "Couldn't open that", "🐢");
       return;
     }
+    if (res.cards.length === 0) { toast("Update the app to see these cards 🐢", "🔄"); return; }
     const best = Math.max(...res.cards.map((c) => rarityRank(c.card.rarity)));
     celebrate(best >= 3 ? POOLS.perfect : POOLS.shop);
     if (res.rewarded) toast(`+${res.rewarded} Turtbux from the pack! 🪙`, "🎉");
+    if ("dropped" in res && res.dropped) toast("Some new cards need an app update 🔄", "🐢");
     setReveal(res.cards);
   };
 
@@ -66,9 +87,10 @@ export function FactsLibrary() {
       <Card className="flat">
         <div className="between">
           <b>Collection</b>
-          <span className="chip">{collectedCount}/{TOTAL_CARDS}</span>
+          <span className={`chip ${complete ? "gold" : ""}`}>{collectedCount}/{TOTAL_CARDS}{complete ? " ✓" : ""}</span>
         </div>
         <div className="progress mt-sm"><div style={{ width: `${(collectedCount / TOTAL_CARDS) * 100}%` }} /></div>
+        {complete && <p className="muted" style={{ fontSize: 12, margin: "8px 0 0", fontWeight: 700 }}>🏅 Pondex complete! Extra packs now top up your Turtbux with rarity-scaled dust.</p>}
       </Card>
 
       {/* booster */}
@@ -90,6 +112,30 @@ export function FactsLibrary() {
         )}
       </Card>
 
+      {/* readable turtle facts — first read of each awards Turtbux */}
+      <div className="between">
+        <h2 style={{ margin: 0 }}>Turtle Facts 📖</h2>
+        <span className="chip">{factsReadCount}/{FACTS.length}</span>
+      </div>
+      <div className="stack" style={{ gap: 8 }}>
+        {FACTS.map((f) => {
+          const read = !!factsRead[f.id];
+          return (
+            <Card key={f.id} className="tight" onClick={() => openFact(f)}>
+              <div className="row" style={{ alignItems: "center" }}>
+                <span style={{ fontSize: 26, filter: read ? "none" : "grayscale(0.3)" }} aria-hidden>{f.emoji}</span>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <b style={{ fontSize: 14 }}>{f.title}</b>
+                  <div className="muted" style={{ fontSize: 12, textTransform: "capitalize" }}>{f.category} · {RARITY[f.rarity].label}</div>
+                </div>
+                <span className={`chip ${read ? "" : "gold"}`} style={{ flexShrink: 0 }}>{read ? "✓ read" : `+${f.reward} 🪙`}</span>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <h2 style={{ margin: "4px 0 0" }}>Cards 🃏</h2>
       <div className="row wrap gap8">
         {FILTERS.map((f) => (
           <button key={f.id} className={`chip ${filter === f.id ? "selected" : "outline"}`} onClick={() => setFilter(f.id)}>{f.label}</button>
@@ -156,6 +202,21 @@ export function FactsLibrary() {
               <span className="chip" style={{ background: RARITY[detail.rarity].color, color: "#3a4a3f" }}>{RARITY[detail.rarity].label}</span>
               <p id="detail-title" style={{ fontWeight: 700, fontSize: 15, margin: "10px 4px" }}>{detail.text}</p>
               <PillButton onClick={() => setDetail(null)}>Nice 🐢</PillButton>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* turtle fact detail */}
+      <AnimatePresence>
+        {factView && (
+          <div className="scrim" onClick={() => setFactView(null)}>
+            <motion.div ref={factRef} className="sheet center" role="dialog" aria-modal="true" aria-labelledby="fact-title" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${RARITY[factView.rarity].color} 28%, var(--surface)), var(--surface))` }}>
+              <div style={{ fontSize: 48 }}>{factView.emoji}</div>
+              <h2 id="fact-title" style={{ margin: "6px 0 2px" }}>{factView.title}</h2>
+              <span className="chip" style={{ background: RARITY[factView.rarity].color, color: "#3a4a3f" }}>{RARITY[factView.rarity].label}</span>
+              <p style={{ fontWeight: 600, fontSize: 15, margin: "12px 6px", lineHeight: 1.5 }}>{factView.body}</p>
+              <PillButton onClick={() => setFactView(null)}>Neat! 🐢</PillButton>
             </motion.div>
           </div>
         )}

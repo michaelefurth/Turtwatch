@@ -57,7 +57,7 @@ export function rowToEntry(r: TurtleEntryRow): TurtleEntry {
     location: r.location_label
       ? { label: r.location_label, lat: r.location_lat ?? undefined, lng: r.location_lng ?? undefined }
       : undefined,
-    shared: (r as { shared?: boolean }).shared ?? false,
+    shared: r.shared ?? false,
     earnedTurtbux: r.earned_turtbux,
     bonuses: { note: r.bonus_note, meta: r.bonus_meta },
     createdAt: r.created_at,
