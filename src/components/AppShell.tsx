@@ -64,6 +64,7 @@ function LilyPad({ style, flower }: { style: React.CSSProperties; flower?: boole
 
 export function AppShell() {
   const themeId = useStore((s) => s.profile.themeId);
+  const lessMotion = useStore((s) => s.prefs.calmMode || s.prefs.reduceMotion);
   const loc = useLocation();
   const { toast, celebrate } = useFeedback();
   useReminders();
@@ -135,11 +136,11 @@ export function AppShell() {
 
   return (
     <div className="app">
-      <PondDecor />
+      {!lessMotion && <PondDecor />}
       <AnimatePresence mode="wait">
         <motion.div
           key={loc.pathname}
-          initial={{ opacity: 0, y: 10 }}
+          initial={lessMotion ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.22, ease: "easeOut" }}

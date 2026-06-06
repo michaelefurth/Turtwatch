@@ -47,7 +47,7 @@ export async function loadCloudState(): Promise<AppState | null> {
   const uidv = await currentUserId();
   if (!uidv) return null;
 
-  const [user, wallet, entries, inv, shields, cards, tasks, notif, ledger, facts] = await Promise.all([
+  const [user, wallet, entries, inv, shields, cards, tasks, notif, ledger, facts, hatchRows] = await Promise.all([
     sb.from("app_user").select("*").eq("id", uidv).maybeSingle(),
     sb.from("wallet").select("*").eq("user_id", uidv).maybeSingle(),
     sb.from("turtle_entry").select("*").eq("user_id", uidv),
@@ -58,6 +58,7 @@ export async function loadCloudState(): Promise<AppState | null> {
     sb.from("notification_settings").select("*").eq("user_id", uidv).maybeSingle(),
     sb.from("turtbux_ledger").select("*").eq("user_id", uidv).order("created_at", { ascending: false }).limit(200),
     sb.from("user_fact_read").select("fact_id, read_at").eq("user_id", uidv),
+    sb.from("user_hatchling").select("hatchling_id, copies").eq("user_id", uidv),
   ]);
 
   const base = makeInitialState();
@@ -82,6 +83,27 @@ export async function loadCloudState(): Promise<AppState | null> {
   const factsRead: Record<string, string> = {};
   for (const f of facts.data ?? []) factsRead[(f as { fact_id: string }).fact_id] = (f as { read_at: string }).read_at;
 
+  // hatchlings: server is the source of truth once seeded; otherwise keep this
+  // device's local collection and seed the server from it once (no data loss).
+  const serverColl: Record<string, number> = {};
+  for (const r of hatchRows.data ?? []) serverColl[(r as { hatchling_id: string }).hatchling_id] = (r as { copies: number }).copies;
+  const prevHatch = prev.hatch ?? base.hatch!;
+  const serverHasHatch = (hatchRows.data?.length ?? 0) > 0 || ((u as { hatch_total?: number }).hatch_total ?? 0) > 0;
+  let hatchState: AppState["hatch"];
+  if (serverHasHatch) {
+    hatchState = {
+      care: (u as { hatch_care?: number }).hatch_care ?? 0,
+      total: (u as { hatch_total?: number }).hatch_total ?? 0,
+      collection: serverColl,
+      companion: (u as { hatch_companion?: string }).hatch_companion ?? undefined,
+    };
+  } else {
+    hatchState = prevHatch;
+    if (Object.keys(prevHatch.collection).length > 0 || prevHatch.care > 0) {
+      void sb.rpc("srv_sync_hatch", { p_care: prevHatch.care, p_total: prevHatch.total, p_companion: prevHatch.companion ?? null, p_rows: prevHatch.collection }); // one-time seed
+    }
+  }
+
   const taskDate = localDate((u as { task_date?: string }).task_date);
   const taskEarned = (u as { task_earned?: number }).task_earned ?? 0;
   const taskSteps = (u as { task_steps_today?: number }).task_steps_today ?? 0;
@@ -98,7 +120,7 @@ export async function loadCloudState(): Promise<AppState | null> {
     prefs: prev.prefs ?? base.prefs,
     perfectDays: prev.perfectDays ?? 0,
     lastPerfectDayOn: prev.lastPerfectDayOn,
-    hatch: prev.hatch ?? base.hatch,
+    hatch: hatchState,
     profile: {
       displayName: (u as { display_name?: string }).display_name ?? "Pond Keeper",
       mascot: ((u as { mascot?: "turtley" | "shelldon" }).mascot ?? "turtley"),
@@ -265,6 +287,27 @@ async function reconcileOne(kind: EconomyKind, payload: unknown): Promise<void> 
         const { data: w } = await sb.from("wallet").select("balance").eq("user_id", uidv).maybeSingle();
         balance = (w as { balance?: number } | null)?.balance;
         break;
+      }
+      // ---- hatchlings (cosmetic; collection synced server-side) ----
+      case "hatch_care": {
+        const { error } = await sb.rpc("srv_add_care", { p_n: p.n });
+        if (error) throw error;
+        return;
+      }
+      case "hatch": {
+        const { error } = await sb.rpc("srv_hatch", { p_id: p.id });
+        if (error) throw error;
+        return;
+      }
+      case "hatch_release": {
+        const { error } = await sb.rpc("srv_release_hatchling", { p_id: p.id, p_care: p.care });
+        if (error) throw error;
+        return;
+      }
+      case "set_companion": {
+        const { error } = await sb.rpc("srv_set_companion", { p_id: p.id ?? "" });
+        if (error) throw error;
+        return;
       }
       case "minigame":
       case "mantra": {

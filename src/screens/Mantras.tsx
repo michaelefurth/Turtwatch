@@ -11,6 +11,7 @@ export function Mantras() {
   const { celebrate, toast } = useFeedback();
   const award = useStore((s) => s.awardMantraReward);
   const mantraState = useStore((s) => s.mantra);
+  const lessMotion = useStore((s) => s.prefs.calmMode || s.prefs.reduceMotion);
 
   const list = useMemo(() => shuffledMantras(), []);
   const [idx, setIdx] = useState(0);
@@ -99,8 +100,8 @@ export function Mantras() {
           </svg>
           <motion.div
             aria-hidden
-            animate={running ? { scale: [1, 1.16, 1] } : { scale: 1 }}
-            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            animate={running && !lessMotion ? { scale: [1, 1.16, 1] } : { scale: 1 }}
+            transition={lessMotion ? { duration: 0 } : { duration: 8, repeat: Infinity, ease: "easeInOut" }}
             style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}
           >
             <span style={{ fontSize: 30 }}>🐢</span>

@@ -45,7 +45,8 @@ export const isHydrating = () => hydrating;
 // reward and the authoritative wallet/state is patched back. Null in local mode.
 export type EconomyKind =
   | "upload" | "update_entry" | "delete_entry" | "repair" | "ai_rescue" | "shield" | "purchase" | "booster"
-  | "login" | "fact_of_day" | "fact_read" | "minigame" | "mantra" | "toggle_task" | "add_task" | "remove_task";
+  | "login" | "fact_of_day" | "fact_read" | "minigame" | "mantra" | "toggle_task" | "add_task" | "remove_task"
+  | "hatch_care" | "hatch" | "hatch_release" | "set_companion";
 let reconciler: ((kind: EconomyKind, payload: unknown) => void) | null = null;
 export function setEconomyReconciler(fn: ((kind: EconomyKind, payload: unknown) => void) | null) {
   reconciler = fn;
@@ -209,7 +210,7 @@ export const useStore = create<Store>((set, get) => {
       // surprise "golden turtle" — a rare extra bonus on a first on-time upload.
       // In cloud mode the SERVER rolls this (srv_upload); rolling here too would
       // double-pay, so let applyServerWallet be the source of truth instead.
-      if (!basePaid && !isCloudMode() && Math.random() < GOLDEN_TURTLE_PROB) {
+      if (!basePaid && !isCloudMode() && s.prefs.surpriseBonuses !== false && Math.random() < GOLDEN_TURTLE_PROB) {
         money = applyDelta({ ...s, ...money }, GOLDEN_TURTLE_BONUS, "lucky_upload", "entry", date);
         entry.earnedTurtbux += GOLDEN_TURTLE_BONUS; // so delete fully reverses it
         reward.parts.push({ label: "✨ Golden turtle!", amount: GOLDEN_TURTLE_BONUS });
@@ -473,8 +474,8 @@ export const useStore = create<Store>((set, get) => {
       let total = award;
       let banked = earnedToday + award;
       let luckyBonus = 0;
-      // surprise lucky flip (still respects the daily cap)
-      if (Math.random() < LUCKY_FLIP_PROB) {
+      // surprise lucky flip (opt-out via prefs for predictable rewards; respects the daily cap)
+      if (s.prefs.surpriseBonuses !== false && Math.random() < LUCKY_FLIP_PROB) {
         const lucky = remainingGameReward(banked, LUCKY_FLIP_BONUS);
         if (lucky > 0) {
           money = applyDelta({ ...s, ...money }, lucky, "lucky_game", "flipgame");
@@ -500,7 +501,7 @@ export const useStore = create<Store>((set, get) => {
       let total = award;
       let banked = earnedToday + award;
       let luckyBonus = 0;
-      if (Math.random() < ZEN_MOMENT_PROB) {
+      if (s.prefs.surpriseBonuses !== false && Math.random() < ZEN_MOMENT_PROB) {
         const lucky = remainingMantraReward(banked, ZEN_MOMENT_BONUS);
         if (lucky > 0) {
           money = applyDelta({ ...s, ...money }, lucky, "lucky_mantra", "mantra");
@@ -636,6 +637,7 @@ export const useStore = create<Store>((set, get) => {
     addCare: (n) => {
       const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
       commit({ hatch: { ...h, care: Math.min(h.care + n, EGG_COST * 5) } });
+      reconciler?.("hatch_care", { n });
     },
     hatchEgg: () => {
       const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
@@ -643,11 +645,13 @@ export const useStore = create<Store>((set, get) => {
       const baby = rollHatchling();
       const isNew = !h.collection[baby.id];
       commit({ hatch: { ...h, care: h.care - EGG_COST, total: h.total + 1, collection: { ...h.collection, [baby.id]: (h.collection[baby.id] ?? 0) + 1 } } });
+      reconciler?.("hatch", { id: baby.id }); // server gates the egg cost + records it
       return { id: baby.id, isNew };
     },
     setCompanion: (id) => {
       const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
       commit({ hatch: { ...h, companion: id ?? undefined } });
+      reconciler?.("set_companion", { id });
     },
     // release a DUPLICATE (keeps at least one) back to the pond for care
     releaseHatchling: (id) => {
@@ -658,6 +662,7 @@ export const useStore = create<Store>((set, get) => {
       const gain = RELEASE_CARE[baby.rarity];
       const collection = { ...h.collection, [id]: h.collection[id] - 1 };
       commit({ hatch: { ...h, collection, care: Math.min(h.care + gain, EGG_COST * 5) } });
+      reconciler?.("hatch_release", { id, care: gain });
       return gain;
     },
     // give a DUPLICATE away (keeps at least one); returns false if none to spare

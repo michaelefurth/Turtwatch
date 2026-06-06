@@ -116,7 +116,7 @@ export function Home() {
     ? "sleepy"
     : "happy";
 
-  const stateKey = todayEntry ? "done" : streak.atRisk ? "risk" : lapsed ? "lapsed" : "idle";
+  const stateKey = todayEntry ? "done" : (streak.atRisk && !gentle) ? "risk" : lapsed ? "lapsed" : "idle";
   // fresh on each visit, stable within a visit
   const mascotSays = useMemo(() => pick(LINES[stateKey]), [stateKey]);
   const greeting = useMemo(() => pick(GREETINGS)(profile.displayName), [profile.displayName]);
@@ -144,14 +144,18 @@ export function Home() {
         <TurtbuxChip balance={balance} />
       </div>
 
-      <button
-        className={`chip ${focus ? "selected" : "outline"}`}
-        style={{ alignSelf: "flex-start" }}
-        aria-pressed={focus}
-        onClick={() => updatePrefs({ focusMode: !focus })}
-      >
-        {focus ? "🎯 Focus mode on" : "🎯 Focus mode"}
-      </button>
+      <div className="row gap8" style={{ alignSelf: "flex-start" }}>
+        <button
+          className={`chip ${focus ? "selected" : "outline"}`}
+          aria-pressed={focus}
+          aria-label={`Focus mode ${focus ? "on" : "off"}`}
+          onClick={() => updatePrefs({ focusMode: !focus })}
+        >
+          <span aria-hidden>🎯</span> Focus mode{focus ? " on" : ""}
+        </button>
+        {/* keep Settings reachable even when focus mode hides the shortcuts row */}
+        {focus && <button className="chip outline icon-chip" aria-label="Settings" onClick={() => nav("/settings")}><GearIcon size={15} /></button>}
+      </div>
 
       <Card className="center">
         <div className="speech">{mascotName} says: “{mascotSays}”</div>
@@ -215,7 +219,8 @@ export function Home() {
               : "Upload one to keep your streak going."}
           </p>
           <PillButton onClick={() => nav("/upload")}>📸 Upload today's turtle</PillButton>
-          {!gentle && (() => {
+          {(() => {
+            // neutral time anchor (ADHD time-blindness) — shown in gentle mode too
             const mins = Math.floor((new Date(today + "T23:59:59").getTime() - Date.now()) / 60000);
             return mins > 0 && mins < 600 ? (
               <p className="muted" style={{ fontSize: 12, margin: "8px 0 0" }}>🕐 {Math.floor(mins / 60)}h {mins % 60}m left today</p>

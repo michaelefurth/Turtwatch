@@ -397,3 +397,10 @@ button.day:active { transform: scale(0.92); }
 .large-text .chip { font-size: 15px; }
 .large-text .tabbar a { font-size: 11px; }
 .large-text .stat b { font-size: 26px; }
+.large-text .stat span { font-size: 14px; }
+.large-text .field, .large-text label.field { font-size: 15px; }
+.large-text .speech { font-size: 15px; }
+.large-text .badge { font-size: 14px; }
+.large-text .day { font-size: 15px; }
+.large-text .collect-rarity { font-size: 11px; }
+.large-text button { font-size: 16px; }

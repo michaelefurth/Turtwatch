@@ -16,6 +16,7 @@ const SUGGESTIONS = ["Upload a turtle 📸", "Read a turtle fact 📖", "Do a ma
 export function Quest() {
   const { celebrate, toast } = useFeedback();
   const quest = useStore((s) => s.quest);
+  const gentle = useStore((s) => s.prefs.gentleStreak);
   const ensureDaily = useStore((s) => s.ensureQuestDaily);
   const addTask = useStore((s) => s.addTask);
   const removeTask = useStore((s) => s.removeTask);
@@ -77,7 +78,7 @@ export function Quest() {
       {/* journey map */}
       <Card>
         <div className="between" style={{ marginBottom: 8 }}>
-          <span className="chip">🔥 {streak}-day goal streak</span>
+          <span className="chip">{gentle ? `🌿 ${streak} days trekking` : `🔥 ${streak}-day goal streak`}</span>
           <span className="chip gold">{placesVisited} place{placesVisited === 1 ? "" : "s"} 🗺️</span>
         </div>
         <div className="center" style={{ fontWeight: 800, marginBottom: 6 }}>

@@ -34,7 +34,8 @@ export function useReminders() {
       // urgent streak-risk copy when that toggle is on and a streak is on the line,
       // otherwise the gentle daily nudge. If neither toggle applies, stay quiet.
       const streak = computeStreak(s.entries).current;
-      const atRisk = s.notifications.streakRiskEnabled && streak >= 1;
+      // gentle mode never sends loss-aversion ("don't break") push copy
+      const atRisk = s.notifications.streakRiskEnabled && streak >= 1 && !s.prefs?.gentleStreak;
       const eggReady = (s.hatch?.care ?? 0) >= EGG_COST;
       // gentle care nudge takes the daily slot when an egg is waiting & today's not done
       const pick = eggReady && s.notifications.dailyReminderEnabled

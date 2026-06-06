@@ -198,8 +198,16 @@ export function Settings() {
         <div className="between"><span>Higher contrast</span><Toggle on={prefs.highContrast} onClick={() => updatePrefs({ highContrast: !prefs.highContrast })} /></div>
         <div className="between"><span>Larger text</span><Toggle on={prefs.largeText} onClick={() => updatePrefs({ largeText: !prefs.largeText })} /></div>
         <div className="between">
+          <div><span>Focus mode</span><div className="muted" style={{ fontSize: 12 }}>Home shows only the next action + today's checklist</div></div>
+          <Toggle on={prefs.focusMode} onClick={() => updatePrefs({ focusMode: !prefs.focusMode })} />
+        </div>
+        <div className="between">
           <div><span>Gentle streak</span><div className="muted" style={{ fontSize: 12 }}>Softer, no-pressure framing — showing up is what counts</div></div>
           <Toggle on={prefs.gentleStreak} onClick={() => updatePrefs({ gentleStreak: !prefs.gentleStreak })} />
+        </div>
+        <div className="between">
+          <div><span>Surprise bonuses</span><div className="muted" style={{ fontSize: 12 }}>Random lucky/zen rewards. Off = steady, predictable rewards</div></div>
+          <Toggle on={prefs.surpriseBonuses !== false} onClick={() => updatePrefs({ surpriseBonuses: prefs.surpriseBonuses === false })} />
         </div>
       </Card>
 

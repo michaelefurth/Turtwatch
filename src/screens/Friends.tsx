@@ -22,6 +22,7 @@ const handleOf = (u: string | null) => (u ? `@${u}` : "no handle yet");
 export function Friends() {
   const { toast } = useFeedback();
   const profile = useStore((s) => s.profile);
+  const gentle = useStore((s) => s.prefs.gentleStreak); // also softens friends' streak display
   const updateProfile = useStore((s) => s.updateProfile);
 
   const [handle, setHandle] = useState(profile.username ?? "");
@@ -293,8 +294,14 @@ export function Friends() {
                   <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>{f.displayName}</b>
                   <div className="muted" style={{ fontSize: 12 }}>{handleOf(f.username)}</div>
                   <div className="row gap8" style={{ marginTop: 4 }}>
-                    <span className="chip">🔥 {f.streak}</span>
-                    <span className="chip">🗺️ {f.trekStreak}</span>
+                    {gentle ? (
+                      f.streak > 0 && <span className="chip">🌿 active</span>
+                    ) : (
+                      <>
+                        <span className="chip">🔥 {f.streak}</span>
+                        <span className="chip">🗺️ {f.trekStreak}</span>
+                      </>
+                    )}
                     {f.sharedCount > 0 && <span className="chip gold">🐢 {f.sharedCount}</span>}
                   </div>
                 </div>
@@ -316,7 +323,7 @@ export function Friends() {
           <div className="scrim" onClick={() => setView(null)}>
             <motion.div ref={viewRef} className="sheet" role="dialog" aria-modal="true" aria-labelledby="friend-title" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}>
               <div className="between">
-                <div className="row"><Mascot mascot={view.friend.mascot} size={44} /><div><h2 id="friend-title" style={{ margin: 0 }}>{view.friend.displayName}</h2><span className="muted" style={{ fontSize: 12 }}>{handleOf(view.friend.username)} · 🔥 {view.friend.streak} · 🗺️ {view.friend.trekStreak}</span></div></div>
+                <div className="row"><Mascot mascot={view.friend.mascot} size={44} /><div><h2 id="friend-title" style={{ margin: 0 }}>{view.friend.displayName}</h2><span className="muted" style={{ fontSize: 12 }}>{handleOf(view.friend.username)}{gentle ? (view.friend.streak > 0 ? " · 🌿 active" : "") : ` · 🔥 ${view.friend.streak} · 🗺️ ${view.friend.trekStreak}`}</span></div></div>
               </div>
               <div className="row wrap gap8" style={{ marginTop: 12 }}>
                 <span className="muted" style={{ fontSize: 12, fontWeight: 800, alignSelf: "center" }}>Send a cheer:</span>

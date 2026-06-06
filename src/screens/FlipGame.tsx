@@ -19,6 +19,7 @@ export function FlipGame() {
   const entries = useStore((s) => s.entries);
   const award = useStore((s) => s.awardGameReward);
   const gameState = useStore((s) => s.game);
+  const lessMotion = useStore((s) => s.prefs.calmMode || s.prefs.reduceMotion);
 
   const ownPhotos = useMemo(
     () => Object.values(entries).map((e) => e.photoUrl).filter((u): u is string => !!u),
@@ -104,8 +105,8 @@ export function FlipGame() {
       <div className="center stack" style={{ gap: 6, marginBottom: 2 }}>
         <motion.div
           aria-hidden
-          animate={{ scale: [1, 1.18, 1], opacity: [0.7, 1, 0.7] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          animate={lessMotion ? { scale: 1, opacity: 1 } : { scale: [1, 1.18, 1], opacity: [0.7, 1, 0.7] }}
+          transition={lessMotion ? { duration: 0 } : { duration: 8, repeat: Infinity, ease: "easeInOut" }}
           style={{ width: 54, height: 54, borderRadius: "50%", background: "color-mix(in srgb, var(--primary) 45%, var(--surface))", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}
         >
           🐢

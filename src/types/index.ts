@@ -162,6 +162,7 @@ export interface ComfortPrefs {
   largeText: boolean;       // bigger, more readable type
   gentleStreak: boolean;    // de-emphasize the streak number & soften pressure
   focusMode: boolean;       // Home shows only the next action + today's checklist
+  surpriseBonuses: boolean; // random "lucky"/"zen" bonuses (off = predictable rewards)
 }
 
 export interface UserProfile {
