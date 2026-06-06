@@ -90,6 +90,8 @@ interface Actions {
   toggleTask: (id: string) => { rewarded: number; arrived: Landmark | null; stepped: boolean };
   openBooster: (paid: boolean) => { ok: boolean; reason?: string; cards?: { card: FactCardDef; isNew: boolean }[]; rewarded?: number };
   updateNotifications: (n: Partial<NotificationSettings>) => void;
+  updatePrefs: (p: Partial<import("@/types").ComfortPrefs>) => void;
+  markPerfectDay: () => boolean; // returns true if newly completed today
   updateProfile: (p: Partial<UserProfile>) => void;
   markReminderFired: () => void;
   setSharedFlag: (date: string, shared: boolean) => void;
@@ -618,6 +620,15 @@ export const useStore = create<Store>((set, get) => {
     },
 
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
+    updatePrefs: (p) => commit({ prefs: { ...get().prefs, ...p } }),
+    // record a "perfect pond day" once; returns true the first time today
+    markPerfectDay: () => {
+      const s = get();
+      const today = todayKey();
+      if (s.lastPerfectDayOn === today) return false;
+      commit({ lastPerfectDayOn: today, perfectDays: (s.perfectDays ?? 0) + 1 });
+      return true;
+    },
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
     markReminderFired: () => commit({ lastReminderOn: todayKey() }),
     // local-only patch of an entry's share flag (server write happens in the UI)
@@ -739,14 +750,16 @@ function evaluate(s: AppState): { achievements: Record<string, string>; newAchie
 function stripState(s: Store): AppState {
   const {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
-    inventory, achievements, notifications, factOfDayClaimedOn,
+    inventory, achievements, notifications, prefs, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
-    gamesWon, mantrasFocused, quest, collection, lastBoosterOn, cloud,
+    gamesWon, mantrasFocused, quest, collection, lastBoosterOn,
+    perfectDays, lastPerfectDayOn, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
-    inventory, achievements, notifications, factOfDayClaimedOn,
+    inventory, achievements, notifications, prefs, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
-    gamesWon, mantrasFocused, quest, collection, lastBoosterOn, cloud,
+    gamesWon, mantrasFocused, quest, collection, lastBoosterOn,
+    perfectDays, lastPerfectDayOn, cloud,
   };
 }

@@ -31,7 +31,7 @@ function hashStr(s: string): number {
 
 export function Home() {
   const nav = useNavigate();
-  const { toast } = useFeedback();
+  const { toast, celebrate } = useFeedback();
   const entries = useStore((s) => s.entries);
   const profile = useStore((s) => s.profile);
   const balance = useStore((s) => s.wallet.balance);
@@ -42,10 +42,28 @@ export function Home() {
   const factClaimedOn = useStore((s) => s.factOfDayClaimedOn);
 
   const ledger = useStore((s) => s.ledger);
+  const prefs = useStore((s) => s.prefs);
+  const updatePrefs = useStore((s) => s.updatePrefs);
+  const quest = useStore((s) => s.quest);
+  const mantraState = useStore((s) => s.mantra);
+  const lastBoosterOn = useStore((s) => s.lastBoosterOn);
+  const markPerfectDay = useStore((s) => s.markPerfectDay);
   const recap = useMemo(() => weeklyRecap({ entries, ledger }), [entries, ledger]);
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const today = todayKey();
   const todayEntry = entries[today];
+  const gentle = prefs.gentleStreak;
+  const focus = prefs.focusMode;
+
+  // "Today's pond" quick wins — clear, small, satisfying (ADHD-friendly)
+  const wins = [
+    { key: "turtle", emoji: "📸", label: "Today's turtle", done: !!todayEntry, to: "/upload" },
+    { key: "goal", emoji: "🎯", label: "A daily goal", done: quest?.lastCompletedDate === today, to: "/quest" },
+    { key: "mantra", emoji: "🧘", label: "A mantra breath", done: mantraState?.date === today, to: "/mantras" },
+    { key: "pack", emoji: "🃏", label: "Open a card pack", done: lastBoosterOn === today, to: "/facts" },
+  ];
+  const winsDone = wins.filter((w) => w.done).length;
+  const allDone = winsDone === wins.length;
   const accessory = equippedAccessory(inventory);
   const mascotName = profile.mascotName || (profile.mascot === "turtley" ? "Turtley" : "Shelldon");
 
@@ -65,11 +83,24 @@ export function Home() {
     if (protectedDay) setTimeout(() => toast("Shell Shield saved your streak! 🛡️", "🛡️"), bonus > 0 ? 350 : 0);
   }, [autoApplyShield, claimLoginBonus, toast]);
 
+  // celebrate completing all of today's quick wins, once per day
+  const celebratedPerfect = useRef(false);
+  useEffect(() => {
+    if (!allDone || celebratedPerfect.current) return;
+    celebratedPerfect.current = true;
+    if (markPerfectDay()) {
+      celebrate(["🌟", "🐢", "💚", "✨", "🌿"]);
+      const n = useStore.getState().perfectDays ?? 0;
+      setTimeout(() => toast(`Perfect pond day! 🌟${n > 1 ? ` · ${n} total` : ""}`, "🐢"), 300);
+    }
+  }, [allDone, markPerfectDay, celebrate, toast]);
+
+  // gentle mode never shows the "worried" (streak-at-risk) face — no pressure
   const mood: MascotMood = todayEntry
     ? streak.current >= 7
       ? "proud"
       : "excited"
-    : streak.atRisk
+    : streak.atRisk && !gentle
     ? "worried"
     : lapsed
     ? "sleepy"
@@ -103,13 +134,22 @@ export function Home() {
         <TurtbuxChip balance={balance} />
       </div>
 
+      <button
+        className={`chip ${focus ? "selected" : "outline"}`}
+        style={{ alignSelf: "flex-start" }}
+        aria-pressed={focus}
+        onClick={() => updatePrefs({ focusMode: !focus })}
+      >
+        {focus ? "🎯 Focus mode on" : "🎯 Focus mode"}
+      </button>
+
       <Card className="center">
         <div className="speech">{mascotName} says: “{mascotSays}”</div>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 4, position: "relative" }}>
           <Mascot mascot={profile.mascot} mood={mood} accessory={accessory} size={96} wave={lapsed} interactive />
           {seasonal && <span aria-hidden style={{ position: "absolute", top: -2, right: "32%", fontSize: 20 }}>{seasonal}</span>}
         </div>
-        <StreakRing current={streak.current} longest={streak.longest} atRisk={streak.atRisk} />
+        <StreakRing current={streak.current} longest={streak.longest} atRisk={streak.atRisk} gentle={gentle} />
       </Card>
 
       {lapsed && missedDay && (
@@ -152,12 +192,39 @@ export function Home() {
         <Card className="center">
           <h2 style={{ marginBottom: 2 }}>No turtle yet today 🐢</h2>
           <p className="muted" style={{ marginTop: 0 }}>
-            {streak.atRisk ? "Your streak naps at midnight — quick!" : "Upload one to keep your streak going."}
+            {gentle
+              ? "Whenever you're ready — one little photo when it suits you 🌿"
+              : streak.atRisk
+              ? "Your streak naps at midnight — quick!"
+              : "Upload one to keep your streak going."}
           </p>
           <PillButton onClick={() => nav("/upload")}>📸 Upload today's turtle</PillButton>
+          {!gentle && (() => {
+            const mins = Math.floor((new Date(today + "T23:59:59").getTime() - Date.now()) / 60000);
+            return mins > 0 && mins < 600 ? (
+              <p className="muted" style={{ fontSize: 12, margin: "8px 0 0" }}>🕐 {Math.floor(mins / 60)}h {mins % 60}m left today</p>
+            ) : null;
+          })()}
         </Card>
       )}
 
+      {/* Today's pond — clear, satisfying quick wins */}
+      <Card className="stack">
+        <div className="between">
+          <b>Today's pond 🌊</b>
+          <span className={`chip ${allDone ? "gold" : ""}`}>{winsDone}/{wins.length}{allDone ? " 🌟" : ""}</span>
+        </div>
+        {wins.map((w) => (
+          <button key={w.key} className="task-row" style={{ width: "100%", border: "none", textAlign: "left", cursor: "pointer" }} onClick={() => nav(w.to)} aria-label={`${w.label}${w.done ? " (done)" : ""}`}>
+            <span className={`task-check ${w.done ? "done" : ""}`} aria-hidden>{w.done ? "✓" : ""}</span>
+            <span className="grow" aria-hidden>{w.emoji} <span className={w.done ? "task-done" : ""} style={{ fontWeight: 700 }}>{w.label}</span></span>
+            {!w.done && <span className="muted" style={{ fontSize: 18 }} aria-hidden>›</span>}
+          </button>
+        ))}
+        {allDone && <p className="muted center" style={{ fontSize: 13, margin: 0, fontWeight: 700 }}>🌟 All done — a perfect pond day!</p>}
+      </Card>
+
+      {!focus && (<>
       {memory && (
         <Card onClick={() => nav(`/day/${memory.entry.date}`)} className="flat">
           <div className="row">
@@ -247,6 +314,7 @@ export function Home() {
         <PillButton variant="secondary" small onClick={() => nav("/feed")}><BookIcon size={16} /> Diary</PillButton>
         <PillButton variant="secondary" small onClick={() => nav("/settings")}><GearIcon size={16} /> Settings</PillButton>
       </div>
+      </>)}
     </div>
   );
 }

@@ -5,9 +5,11 @@ interface Props {
   current: number;
   longest: number;
   atRisk?: boolean;
+  gentle?: boolean; // soften framing: no fire/at-risk pressure, kinder label
 }
 
-export function StreakRing({ current, longest, atRisk }: Props) {
+export function StreakRing({ current, longest, atRisk: atRiskRaw, gentle }: Props) {
+  const atRisk = atRiskRaw && !gentle;
   const r = 72;
   const c = 2 * Math.PI * r;
   const band = Math.max(7, Math.ceil((current || 1) / 7) * 7);
@@ -49,13 +51,15 @@ export function StreakRing({ current, longest, atRisk }: Props) {
           />
         </svg>
         <div className="num">
-          <span style={{ fontSize: 22 }} aria-hidden>{atRisk ? "🔥" : "🐢"}</span>
+          <span style={{ fontSize: 22 }} aria-hidden>{gentle ? "🌿" : atRisk ? "🔥" : "🐢"}</span>
           <b>{current}</b>
-          <span className="muted" style={{ fontWeight: 800, fontSize: 12 }}>day streak</span>
+          <span className="muted" style={{ fontWeight: 800, fontSize: 12 }}>{gentle ? "days shown up" : "day streak"}</span>
         </div>
       </div>
       <div className="muted" style={{ fontWeight: 800, fontSize: 13 }}>
-        🏆 Longest: {longest}{atRisk && current > 0 ? " · upload today to keep it!" : ""}
+        {gentle
+          ? "🌱 Every day you show up counts"
+          : `🏆 Longest: ${longest}${atRisk && current > 0 ? " · upload today to keep it!" : ""}`}
       </div>
     </div>
   );

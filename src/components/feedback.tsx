@@ -29,9 +29,12 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
   const celebrate = useCallback((emojis?: string[]) => {
     // gentle sound + haptic, gated by the user's settings
-    const n = useStore.getState().notifications;
+    const s = useStore.getState();
+    const n = s.notifications;
     if (n.soundEnabled) playChime();
     if (n.hapticsEnabled !== false && !prefersReducedMotion()) vibrate([0, 18, 40, 18]);
+    // calm / reduced-motion: skip the confetti burst (the toast still shows)
+    if (s.prefs?.calmMode || s.prefs?.reduceMotion || prefersReducedMotion()) return;
     const id = Math.random().toString(36).slice(2);
     const items = Array.from({ length: 26 }, () => {
       const pool = emojis && emojis.length ? emojis : CONFETTI;

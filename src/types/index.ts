@@ -153,6 +153,17 @@ export interface NotificationSettings {
   pushEnabled?: boolean; // browser push for reminders / good mornings
 }
 
+/** Comfort & focus preferences — ADHD/autism support. Device-local. */
+export interface ComfortPrefs {
+  calmMode: boolean;        // master: low-stimulation (reduces motion + transparency + softens rewards)
+  reduceMotion: boolean;    // disable decorative animation & confetti
+  reduceTransparency: boolean; // turn off backdrop blur / translucency
+  highContrast: boolean;    // stronger text/border contrast
+  largeText: boolean;       // bigger, more readable type
+  gentleStreak: boolean;    // de-emphasize the streak number & soften pressure
+  focusMode: boolean;       // Home shows only the next action + today's checklist
+}
+
 export interface UserProfile {
   displayName: string;
   mascot: Mascot;
@@ -182,6 +193,7 @@ export interface AppState {
   inventory: Record<string, { equipped: boolean; acquiredAt: string }>; // itemId -> ...
   achievements: Record<string, string>; // achievementId -> earnedAt
   notifications: NotificationSettings;
+  prefs: ComfortPrefs;
   factOfDayClaimedOn?: string; // date key
   autoShieldCheckedOn?: string; // date key — auto-shield runs at most once/day
   lastReminderOn?: string; // date key — local reminder fired at most once/day
@@ -198,6 +210,9 @@ export interface AppState {
   /** Collectible fact cards: cardId -> copies owned */
   collection?: Record<string, number>;
   lastBoosterOn?: string; // date key the free daily booster was opened
+  /** "Perfect pond day" tracking — all daily wins done (engagement, no currency) */
+  perfectDays?: number;
+  lastPerfectDayOn?: string; // date key the day was completed
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }

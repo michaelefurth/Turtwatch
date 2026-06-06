@@ -29,6 +29,8 @@ export function Settings() {
   const inventory = useStore((s) => s.inventory);
   const updateProfile = useStore((s) => s.updateProfile);
   const updateNotifications = useStore((s) => s.updateNotifications);
+  const prefs = useStore((s) => s.prefs);
+  const updatePrefs = useStore((s) => s.updatePrefs);
   const reset = useStore((s) => s.reset);
   const hydrateState = useStore((s) => s.hydrateState);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -178,6 +180,27 @@ export function Settings() {
             )}
           </>
         )}
+      </Card>
+
+      <Card className="stack">
+        <h3 style={{ margin: 0 }}>Comfort & focus 🌿</h3>
+        <span className="muted" style={{ fontSize: 13 }}>Make TurtWatch calmer and easier to focus with. Nothing here changes your turtles.</span>
+        <div className="between">
+          <div><span>Calm mode</span><div className="muted" style={{ fontSize: 12 }}>Low stimulation: less motion, no confetti, solid surfaces</div></div>
+          <Toggle on={prefs.calmMode} onClick={() => updatePrefs({ calmMode: !prefs.calmMode })} />
+        </div>
+        {!prefs.calmMode && (
+          <>
+            <div className="between"><span>Reduce motion</span><Toggle on={prefs.reduceMotion} onClick={() => updatePrefs({ reduceMotion: !prefs.reduceMotion })} /></div>
+            <div className="between"><span>Reduce transparency</span><Toggle on={prefs.reduceTransparency} onClick={() => updatePrefs({ reduceTransparency: !prefs.reduceTransparency })} /></div>
+          </>
+        )}
+        <div className="between"><span>Higher contrast</span><Toggle on={prefs.highContrast} onClick={() => updatePrefs({ highContrast: !prefs.highContrast })} /></div>
+        <div className="between"><span>Larger text</span><Toggle on={prefs.largeText} onClick={() => updatePrefs({ largeText: !prefs.largeText })} /></div>
+        <div className="between">
+          <div><span>Gentle streak</span><div className="muted" style={{ fontSize: 12 }}>Softer, no-pressure framing — showing up is what counts</div></div>
+          <Toggle on={prefs.gentleStreak} onClick={() => updatePrefs({ gentleStreak: !prefs.gentleStreak })} />
+        </div>
       </Card>
 
       <Card className="stack">

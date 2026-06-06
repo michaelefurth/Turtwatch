@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { useStore } from "@/store/useStore";
@@ -33,8 +33,22 @@ function RequireOnboarding({ children }: { children: ReactElement }) {
 }
 
 export default function App() {
+  const prefs = useStore((s) => s.prefs);
+  const calm = prefs.calmMode;
+  const lessMotion = calm || prefs.reduceMotion;
+
+  // reflect comfort prefs as <html> classes so CSS can adapt app-wide
+  useEffect(() => {
+    const c = document.documentElement.classList;
+    c.toggle("calm", calm);
+    c.toggle("reduce-motion", lessMotion);
+    c.toggle("reduce-transparency", calm || prefs.reduceTransparency);
+    c.toggle("high-contrast", prefs.highContrast);
+    c.toggle("large-text", prefs.largeText);
+  }, [calm, lessMotion, prefs.reduceTransparency, prefs.highContrast, prefs.largeText]);
+
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionConfig reducedMotion={lessMotion ? "always" : "user"}>
       <ErrorBoundary>
       <FeedbackProvider>
         <CloudGate>

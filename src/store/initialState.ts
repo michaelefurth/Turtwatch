@@ -28,6 +28,15 @@ export function makeInitialState(): AppState {
       hapticsEnabled: true,
       pushEnabled: false,
     },
+    prefs: {
+      calmMode: false,
+      reduceMotion: false,
+      reduceTransparency: false,
+      highContrast: false,
+      largeText: false,
+      gentleStreak: false,
+      focusMode: false,
+    },
     // explicit so reset() (a shallow merge) clears any prior values
     factOfDayClaimedOn: undefined,
     autoShieldCheckedOn: undefined,
@@ -40,6 +49,8 @@ export function makeInitialState(): AppState {
     quest: undefined,
     collection: {},
     lastBoosterOn: undefined,
+    perfectDays: 0,
+    lastPerfectDayOn: undefined,
     cloud: { autoBackup: false },
   };
 }

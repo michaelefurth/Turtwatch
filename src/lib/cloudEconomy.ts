@@ -94,6 +94,10 @@ export async function loadCloudState(): Promise<AppState | null> {
     // so neither a fresh device nor an offline session loses progress.
     gamesWon: Math.max(prev.gamesWon ?? 0, (u as { game_won?: number }).game_won ?? 0),
     mantrasFocused: Math.max(prev.mantrasFocused ?? 0, (u as { mantra_focused?: number }).mantra_focused ?? 0),
+    // comfort prefs + perfect-day tracking are device-local — keep this device's
+    prefs: prev.prefs ?? base.prefs,
+    perfectDays: prev.perfectDays ?? 0,
+    lastPerfectDayOn: prev.lastPerfectDayOn,
     profile: {
       displayName: (u as { display_name?: string }).display_name ?? "Pond Keeper",
       mascot: ((u as { mascot?: "turtley" | "shelldon" }).mascot ?? "turtley"),
