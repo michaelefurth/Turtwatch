@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
+import { useBreakNudge } from "@/hooks/useBreakNudge";
 import { Card, PillButton, BackButton } from "@/components/common";
 import { shuffledMantras, FOCUS_OPTIONS, MANTRA_REWARD, MANTRA_DAILY_CAP } from "@/logic/mantras";
 import { todayKey } from "@/logic/dates";
@@ -12,6 +13,7 @@ export function Mantras() {
   const award = useStore((s) => s.awardMantraReward);
   const mantraState = useStore((s) => s.mantra);
   const lessMotion = useStore((s) => s.prefs.calmMode || s.prefs.reduceMotion);
+  const nudgeBreak = useBreakNudge("breathing");
 
   const list = useMemo(() => shuffledMantras(), []);
   const [idx, setIdx] = useState(0);
@@ -54,6 +56,7 @@ export function Mantras() {
       celebrate(["🧘", "🌸", "🌿", "✨", "💫", "🪷"]);
       setTimeout(() => toast(`${next} breaths taken 🌸`, "🌸"), 350);
     }
+    nudgeBreak(); // gentle hyperfocus check-in after several sessions
     setFocused(next);
     setIdx((i) => i + 1);
     setRemaining(duration);

@@ -28,6 +28,7 @@ export function Onboarding() {
   const [themeId, setThemeId] = useState("pond_mint");
   const [reminderTime, setReminderTime] = useState("19:00");
   const [reminders, setReminders] = useState(true);
+  const [feel, setFeel] = useState<"calm" | "standard">("standard");
 
   if (onboarded) return <Navigate to="/" replace />;
 
@@ -40,6 +41,8 @@ export function Onboarding() {
       displayName: nick || "Pond Keeper",
     });
     useStore.getState().updateNotifications({ dailyReminderEnabled: reminders, reminderTime });
+    // comfort preset: "Cozy & calm" turns on low-stimulation + gentle, no-pressure framing
+    if (feel === "calm") useStore.getState().updatePrefs({ calmMode: true, gentleStreak: true });
     if (reminders) void requestNotificationPermission();
     celebrate(["🪙", "🐢", "✨"]);
     toast(`Welcome! +${ONBOARDING_GIFT} Turtbux to start 🪙`, "🎉");
@@ -107,6 +110,23 @@ export function Onboarding() {
                     <span className="sw" style={{ background: t.primary }} /> {t.name}
                   </button>
                 ))}
+              </div>
+            </Card>
+
+            <Card>
+              <h3>How should it feel?</h3>
+              <span className="muted" style={{ fontSize: 13 }}>You can change this anytime in Settings.</span>
+              <div className="grid2" style={{ marginTop: 10 }}>
+                <button className="stat center" style={{ border: feel === "standard" ? "3px solid var(--primary-deep)" : "3px solid transparent" }} onClick={() => setFeel("standard")}>
+                  <div style={{ fontSize: 30 }}>✨</div>
+                  <b style={{ fontSize: 14 }}>Standard</b>
+                  <span className="muted" style={{ fontSize: 11 }}>Playful & lively</span>
+                </button>
+                <button className="stat center" style={{ border: feel === "calm" ? "3px solid var(--primary-deep)" : "3px solid transparent" }} onClick={() => setFeel("calm")}>
+                  <div style={{ fontSize: 30 }}>🌿</div>
+                  <b style={{ fontSize: 14 }}>Cozy & calm</b>
+                  <span className="muted" style={{ fontSize: 11 }}>Less motion, no pressure</span>
+                </button>
               </div>
             </Card>
 

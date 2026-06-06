@@ -19,6 +19,9 @@ export const EGG_COST = 100;
 // releasing a duplicate hatchling returns care (rarity-scaled) toward the next egg
 export const RELEASE_CARE: Record<HatchRarity, number> = { common: 15, rare: 25, epic: 40, legendary: 60 };
 
+// pity: guarantee a legendary by this many hatches without one (expected ~33 at 3%)
+export const LEGENDARY_PITY = 30;
+
 export const HATCHLINGS: Hatchling[] = [
   // ---- common (everyday darlings) ----
   { id: "h-cap", name: "Cappy", outfit: "🧢", rarity: "common" },
@@ -72,8 +75,13 @@ export const hatchlingById = (id: string): Hatchling | undefined => HATCHLINGS.f
 
 const WEIGHTS: Record<HatchRarity, number> = { common: 58, rare: 27, epic: 12, legendary: 3 };
 
-/** Roll a hatchling: pick a rarity by weight, then a uniform pick within it. */
-export function rollHatchling(): Hatchling {
+/** Roll a hatchling: pick a rarity by weight, then a uniform pick within it.
+ *  forceLegendary guarantees a legendary (used by the pity system). */
+export function rollHatchling(forceLegendary = false): Hatchling {
+  if (forceLegendary) {
+    const legendaries = HATCHLINGS.filter((h) => h.rarity === "legendary");
+    return legendaries[Math.floor(Math.random() * legendaries.length)] ?? HATCHLINGS[0];
+  }
   const total = Object.values(WEIGHTS).reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
   let chosen: HatchRarity = "common";

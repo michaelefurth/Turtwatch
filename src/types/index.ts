@@ -163,6 +163,7 @@ export interface ComfortPrefs {
   gentleStreak: boolean;    // de-emphasize the streak number & soften pressure
   focusMode: boolean;       // Home shows only the next action + today's checklist
   surpriseBonuses: boolean; // random "lucky"/"zen" bonuses (off = predictable rewards)
+  breakNudges: boolean;     // gentle "take a break?" after long game/mantra sessions
 }
 
 export interface UserProfile {
@@ -215,7 +216,7 @@ export interface AppState {
   perfectDays?: number;
   lastPerfectDayOn?: string; // date key the day was completed
   /** Hatchlings — care earned from accountability hatches collectible turtles */
-  hatch?: { care: number; collection: Record<string, number>; total: number; companion?: string };
+  hatch?: { care: number; collection: Record<string, number>; total: number; companion?: string; pity?: number };
   lastNurseryNudgeOn?: string; // gentle "egg ready" nudge fired at most once/day
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };

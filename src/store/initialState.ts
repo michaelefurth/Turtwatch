@@ -37,6 +37,7 @@ export function makeInitialState(): AppState {
       gentleStreak: false,
       focusMode: false,
       surpriseBonuses: true,
+      breakNudges: true,
     },
     // explicit so reset() (a shallow merge) clears any prior values
     factOfDayClaimedOn: undefined,

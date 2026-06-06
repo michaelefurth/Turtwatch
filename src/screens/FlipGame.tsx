@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
+import { useBreakNudge } from "@/hooks/useBreakNudge";
 import { Card, PillButton, BackButton } from "@/components/common";
 import { makeDeck, pickFaces, gameReward, DAILY_GAME_CAP, type FlipCard } from "@/logic/flipgame";
 import { SAMPLE_TURTLES } from "@/data/sampleTurtles";
@@ -20,6 +21,7 @@ export function FlipGame() {
   const award = useStore((s) => s.awardGameReward);
   const gameState = useStore((s) => s.game);
   const lessMotion = useStore((s) => s.prefs.calmMode || s.prefs.reduceMotion);
+  const nudgeBreak = useBreakNudge("playing");
 
   const ownPhotos = useMemo(
     () => Object.values(entries).map((e) => e.photoUrl).filter((u): u is string => !!u),
@@ -73,7 +75,8 @@ export function FlipGame() {
     if (reward > 0) toast(pick(GAME_WIN).replace("{n}", String(reward)), mismatches === 0 ? "🌟" : "🐢");
     else toast("Daily Turtbux maxed — keep playing to relax 🌿", "🧘");
     if (lucky > 0) setTimeout(() => toast(`✨ Lucky flip! +${lucky} bonus 🪙`, "🍀"), 450);
-  }, [matched, mismatches, award, celebrate, toast]);
+    nudgeBreak(); // gentle hyperfocus check-in after several rounds
+  }, [matched, mismatches, award, celebrate, toast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isUp = (pos: number) => revealed.includes(pos) || matched.has(deck[pos].pairId);
 

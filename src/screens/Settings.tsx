@@ -209,6 +209,10 @@ export function Settings() {
           <div><span>Surprise bonuses</span><div className="muted" style={{ fontSize: 12 }}>Random lucky/zen rewards. Off = steady, predictable rewards</div></div>
           <Toggle on={prefs.surpriseBonuses !== false} onClick={() => updatePrefs({ surpriseBonuses: prefs.surpriseBonuses === false })} />
         </div>
+        <div className="between">
+          <div><span>Break reminders</span><div className="muted" style={{ fontSize: 12 }}>A gentle "take a break?" after long play/focus sessions</div></div>
+          <Toggle on={prefs.breakNudges !== false} onClick={() => updatePrefs({ breakNudges: prefs.breakNudges === false })} />
+        </div>
       </Card>
 
       <Card className="stack">

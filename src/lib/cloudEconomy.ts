@@ -96,6 +96,7 @@ export async function loadCloudState(): Promise<AppState | null> {
       total: (u as { hatch_total?: number }).hatch_total ?? 0,
       collection: serverColl,
       companion: (u as { hatch_companion?: string }).hatch_companion ?? undefined,
+      pity: prevHatch.pity ?? 0, // pity is client-side; carry it across rehydrate
     };
   } else {
     hatchState = prevHatch;

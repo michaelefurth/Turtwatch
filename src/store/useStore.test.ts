@@ -190,3 +190,16 @@ describe("nursery: care hatches collectible turtles", () => {
     expect(useStore.getState().hatch!.care).toBe(EGG_COST * 4);
   });
 })
+
+describe("nursery: legendary pity", () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it("guarantees a legendary once pity reaches the threshold", async () => {
+    const { LEGENDARY_PITY, hatchlingById } = await import("@/data/hatchlings");
+    useStore.getState().addCare(EGG_COST);
+    useStore.setState({ hatch: { ...useStore.getState().hatch!, pity: LEGENDARY_PITY } });
+    const res = useStore.getState().hatchEgg()!;
+    expect(hatchlingById(res.id)!.rarity).toBe("legendary");
+    expect(useStore.getState().hatch!.pity).toBe(0); // resets after a legendary
+  });
+})

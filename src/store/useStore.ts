@@ -23,7 +23,7 @@ import {
   reachedCount, TASK_REWARD, LEG_BONUS, STEP_DAILY_CAP, type Landmark,
 } from "@/logic/quest";
 import { pullBooster, cardReward, BOOSTER_COST, TOTAL_CARDS } from "@/logic/booster";
-import { rollHatchling, hatchlingById, EGG_COST, RELEASE_CARE } from "@/data/hatchlings";
+import { rollHatchling, hatchlingById, EGG_COST, RELEASE_CARE, LEGENDARY_PITY } from "@/data/hatchlings";
 import type { FactCardDef } from "@/data/factCards";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
@@ -642,9 +642,12 @@ export const useStore = create<Store>((set, get) => {
     hatchEgg: () => {
       const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
       if (h.care < EGG_COST) return null;
-      const baby = rollHatchling();
+      // pity: force a legendary once you've gone LEGENDARY_PITY hatches without one
+      const pity = h.pity ?? 0;
+      const baby = rollHatchling(pity >= LEGENDARY_PITY);
       const isNew = !h.collection[baby.id];
-      commit({ hatch: { ...h, care: h.care - EGG_COST, total: h.total + 1, collection: { ...h.collection, [baby.id]: (h.collection[baby.id] ?? 0) + 1 } } });
+      const nextPity = baby.rarity === "legendary" ? 0 : pity + 1;
+      commit({ hatch: { ...h, care: h.care - EGG_COST, total: h.total + 1, pity: nextPity, collection: { ...h.collection, [baby.id]: (h.collection[baby.id] ?? 0) + 1 } } });
       reconciler?.("hatch", { id: baby.id }); // server gates the egg cost + records it
       return { id: baby.id, isNew };
     },

@@ -6,7 +6,7 @@ import { Card, PillButton, BackButton } from "@/components/common";
 import { Critter } from "@/components/Critter";
 import { useSheetFocus } from "@/hooks/useSheetFocus";
 import { POOLS } from "@/lib/variety";
-import { HATCHLINGS, HATCH_RARITY, EGG_COST, RELEASE_CARE, TOTAL_HATCHLINGS, hatchlingById, type Hatchling } from "@/data/hatchlings";
+import { HATCHLINGS, HATCH_RARITY, EGG_COST, RELEASE_CARE, LEGENDARY_PITY, TOTAL_HATCHLINGS, hatchlingById, type Hatchling } from "@/data/hatchlings";
 
 export function Nursery() {
   const { celebrate, toast } = useFeedback();
@@ -56,6 +56,10 @@ export function Nursery() {
         ) : (
           <PillButton variant="secondary" disabled>Keep caring 🌱</PillButton>
         )}
+        {(() => {
+          const left = Math.max(0, LEGENDARY_PITY - (hatch.pity ?? 0));
+          return left <= 12 ? <span className="muted" style={{ fontSize: 12, fontWeight: 700 }}>✨ A legendary is guaranteed within {left === 0 ? "your next hatch" : `${left} hatches`}</span> : null;
+        })()}
       </Card>
 
       <Card className="flat">
