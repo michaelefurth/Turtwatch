@@ -100,6 +100,8 @@ interface Actions {
   hatchEgg: () => { id: string; isNew: boolean } | null;
   setCompanion: (id: string | null) => void; // pick a hatchling buddy for Home
   releaseHatchling: (id: string) => number; // release a duplicate -> care returned
+  giftAway: (id: string) => boolean; // remove a duplicate to gift it to a friend
+  receiveHatchling: (id: string) => void; // claim a gifted hatchling into the collection
   markNurseryNudge: () => void;
   setCloud: (patch: Partial<NonNullable<AppState["cloud"]>>) => void;
   hydrateState: (state: AppState) => void;
@@ -657,6 +659,18 @@ export const useStore = create<Store>((set, get) => {
       const collection = { ...h.collection, [id]: h.collection[id] - 1 };
       commit({ hatch: { ...h, collection, care: Math.min(h.care + gain, EGG_COST * 5) } });
       return gain;
+    },
+    // give a DUPLICATE away (keeps at least one); returns false if none to spare
+    giftAway: (id) => {
+      const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
+      if ((h.collection[id] ?? 0) < 2) return false;
+      commit({ hatch: { ...h, collection: { ...h.collection, [id]: h.collection[id] - 1 } } });
+      return true;
+    },
+    // claim a gifted hatchling into the collection (companion/total untouched)
+    receiveHatchling: (id) => {
+      const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
+      commit({ hatch: { ...h, collection: { ...h.collection, [id]: (h.collection[id] ?? 0) + 1 } } });
     },
     markNurseryNudge: () => commit({ lastNurseryNudgeOn: todayKey() }),
     // record a "perfect pond day" once; returns true the first time today

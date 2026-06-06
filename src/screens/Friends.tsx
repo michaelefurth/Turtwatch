@@ -3,15 +3,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useStore, isCloudMode } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Mascot } from "@/components/Mascot";
+import { Critter } from "@/components/Critter";
 import { Card, PillButton, BackButton, TurtlePhoto } from "@/components/common";
 import { useSheetFocus } from "@/hooks/useSheetFocus";
 import { prettyDate } from "@/logic/dates";
+import { hatchlingById, HATCH_RARITY } from "@/data/hatchlings";
 import {
   listFriends, pendingRequests, sendFriendRequest, respondFriendRequest,
   removeFriend, setUsername, friendTurtles, friendErr,
   listCheers, sendCheer, CHEER_EMOJI,
   listGroupGoals, createGroupGoal, respondGroupGoal, leaveGroupGoal,
-  type Friend, type PendingRequest, type OutgoingRequest, type FriendTurtle, type Cheer, type GroupGoal,
+  sendGift, listGifts, claimGift, declineGift,
+  type Friend, type PendingRequest, type OutgoingRequest, type FriendTurtle, type Cheer, type GroupGoal, type Gift,
 } from "@/lib/friends";
 
 const handleOf = (u: string | null) => (u ? `@${u}` : "no handle yet");
@@ -27,7 +30,13 @@ export function Friends() {
   const [incoming, setIncoming] = useState<PendingRequest[]>([]);
   const [outgoing, setOutgoing] = useState<OutgoingRequest[]>([]);
   const [cheers, setCheers] = useState<Cheer[]>([]);
+  const [gifts, setGifts] = useState<Gift[]>([]);
   const [goals, setGoals] = useState<GroupGoal[]>([]);
+  const [giftPicker, setGiftPicker] = useState(false);
+  const hatch = useStore((s) => s.hatch) ?? { care: 0, collection: {}, total: 0 };
+  const giftAway = useStore((s) => s.giftAway);
+  const receiveHatchling = useStore((s) => s.receiveHatchling);
+  const spares = Object.entries(hatch.collection).filter(([, n]) => n > 1).map(([id]) => hatchlingById(id)).filter(Boolean);
   const [goalTitle, setGoalTitle] = useState("");
   const [goalTarget, setGoalTarget] = useState(20);
   const [busy, setBusy] = useState(false);
@@ -40,12 +49,13 @@ export function Friends() {
 
   const refresh = async () => {
     try {
-      const [fs, reqs, ch, gg] = await Promise.all([listFriends(), pendingRequests(), listCheers(), listGroupGoals()]);
+      const [fs, reqs, ch, gg, gf] = await Promise.all([listFriends(), pendingRequests(), listCheers(), listGroupGoals(), listGifts()]);
       setFriends(fs);
       setIncoming(reqs.incoming);
       setOutgoing(reqs.outgoing);
       setCheers(ch.cheers);
       setGoals(gg);
+      setGifts(gf);
       setLoadError(false);
     } catch { setLoadError(true); }
     finally { setLoading(false); }
@@ -107,6 +117,22 @@ export function Friends() {
     toast(`Cheer sent! ${emoji}`, "💌");
     await refresh();
   });
+
+  const giftTo = (friendId: string, hatchlingId: string) => run(async () => {
+    await sendGift(friendId, hatchlingId);   // server first
+    giftAway(hatchlingId);                    // then drop the local duplicate
+    setGiftPicker(false);
+    toast("Gift sent! 🎁", hatchlingById(hatchlingId)?.outfit ?? "🐢");
+  });
+
+  const claim = (g: Gift) => run(async () => {
+    const { hatchlingId } = await claimGift(g.id);
+    receiveHatchling(hatchlingId);
+    toast(`You got ${hatchlingById(hatchlingId)?.name ?? "a turtle"}! 🎁`, hatchlingById(hatchlingId)?.outfit ?? "🐢");
+    await refresh();
+  });
+
+  const decline = (g: Gift) => run(async () => { await declineGift(g.id); await refresh(); });
 
   const startGoal = (friendId: string) => run(async () => {
     await createGroupGoal(friendId, goalTitle.trim() || "Turtles together", goalTarget);
@@ -185,6 +211,28 @@ export function Friends() {
               <span><b>{c.displayName}</b> <span className="muted" style={{ fontSize: 12 }}>cheered you on</span></span>
             </div>
           ))}
+        </Card>
+      )}
+
+      {/* gifts received */}
+      {gifts.length > 0 && (
+        <Card className="stack">
+          <h3 style={{ margin: 0 }}>Gifts for you 🎁</h3>
+          {gifts.map((g) => {
+            const h = hatchlingById(g.hatchlingId);
+            return (
+              <div key={g.id} className="between">
+                <div className="row" style={{ gap: 8 }}>
+                  {h ? <Critter outfit={h.outfit} size={30} /> : <span style={{ fontSize: 24 }} aria-hidden>🎁</span>}
+                  <span style={{ minWidth: 0 }}><b>{h?.name ?? "A turtle"}</b><div className="muted" style={{ fontSize: 12 }}>from {g.displayName}</div></span>
+                </div>
+                <div className="row" style={{ gap: 6 }}>
+                  <button className="chip selected" disabled={busy} onClick={() => claim(g)}>Claim</button>
+                  <button className="chip outline" disabled={busy} onClick={() => decline(g)} aria-label="Decline gift">✕</button>
+                </div>
+              </div>
+            );
+          })}
         </Card>
       )}
 
@@ -275,6 +323,26 @@ export function Friends() {
                 {CHEER_EMOJI.map((e) => (
                   <button key={e} className="chip outline" disabled={busy} onClick={() => cheer(view.friend.id, e)} aria-label={`Send ${e} cheer`}>{e}</button>
                 ))}
+              </div>
+
+              {/* gift a spare hatchling */}
+              <div className="stack" style={{ marginTop: 14, gap: 8 }}>
+                <div className="between">
+                  <b style={{ fontSize: 14 }}>Send a hatchling 🎁</b>
+                  {spares.length > 0 && <button className="chip outline" onClick={() => setGiftPicker((v) => !v)}>{giftPicker ? "Close" : "Pick one"}</button>}
+                </div>
+                {spares.length === 0 ? (
+                  <span className="muted" style={{ fontSize: 12 }}>Hatch a duplicate in your Nursery to gift one 🥚</span>
+                ) : giftPicker ? (
+                  <div className="row wrap gap8">
+                    {spares.map((h) => h && (
+                      <button key={h.id} className="collect-card" style={{ width: 64, aspectRatio: "0.82", background: `color-mix(in srgb, ${HATCH_RARITY[h.rarity].color} 26%, var(--surface))` }} disabled={busy} onClick={() => giftTo(view.friend.id, h.id)} aria-label={`Gift ${h.name}`}>
+                        <Critter outfit={h.outfit} size={26} />
+                        <span className="collect-rarity">{h.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               <div className="stack" style={{ marginTop: 14, gap: 8 }}>

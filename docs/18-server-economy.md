@@ -35,8 +35,8 @@ fully **local** and offline — nothing changes.
 SQL editor and run it once on a fresh project. It contains everything — core
 schema, server-authoritative economy, the 336-card seed, push tables, the
 friends/social layer (handles, friendships, shared turtles, cheers, shared
-goals), and the `turtles` storage bucket + policies. It's idempotent — safe to
-re-run after an update.
+goals, hatchling gifts), and the `turtles` storage bucket + policies. It's
+idempotent — safe to re-run after an update.
 
 **Or via the CLI (incremental migrations):**
 ```bash

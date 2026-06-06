@@ -3,19 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useStore } from "@/store/useStore";
 import { useFeedback } from "@/components/feedback";
 import { Card, PillButton, BackButton } from "@/components/common";
+import { Critter } from "@/components/Critter";
 import { useSheetFocus } from "@/hooks/useSheetFocus";
 import { POOLS } from "@/lib/variety";
 import { HATCHLINGS, HATCH_RARITY, EGG_COST, RELEASE_CARE, TOTAL_HATCHLINGS, hatchlingById, type Hatchling } from "@/data/hatchlings";
-
-/** A baby turtle wearing an outfit. */
-function Critter({ outfit, size = 40 }: { outfit: string; size?: number }) {
-  return (
-    <span style={{ position: "relative", fontSize: size, lineHeight: 1, display: "inline-block" }} aria-hidden>
-      🐢
-      <span style={{ position: "absolute", top: -size * 0.18, right: -size * 0.22, fontSize: size * 0.5 }}>{outfit}</span>
-    </span>
-  );
-}
 
 export function Nursery() {
   const { celebrate, toast } = useFeedback();

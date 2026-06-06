@@ -19,6 +19,7 @@ export interface Cheer { id: string; emoji: string; from: string; username: stri
 
 export const CHEER_EMOJI = ["👏", "💚", "🔥", "🐢", "✨", "🌸"];
 
+export interface Gift { id: string; from: string; username: string | null; displayName: string; mascot: "turtley" | "shelldon"; hatchlingId: string }
 export interface GoalMember { id: string; displayName: string; mascot: "turtley" | "shelldon"; status: "pending" | "accepted"; contribution: number }
 export interface GroupGoal {
   id: string; title: string; target: number; startDate: string;
@@ -47,6 +48,10 @@ export const createGroupGoal = (friendId: string, title: string, target: number)
 export const respondGroupGoal = (goalId: string, accept: boolean) => rpc<{ ok: boolean }>("srv_respond_group_goal", { p_goal: goalId, p_accept: accept });
 export const leaveGroupGoal = (goalId: string) => rpc<{ ok: boolean }>("srv_leave_group_goal", { p_goal: goalId });
 export const listGroupGoals = () => rpc<GroupGoal[]>("srv_list_group_goals");
+export const sendGift = (friendId: string, hatchlingId: string) => rpc<{ ok: boolean }>("srv_send_gift", { p_friend: friendId, p_hatchling: hatchlingId });
+export const listGifts = () => rpc<Gift[]>("srv_list_gifts");
+export const claimGift = (id: string) => rpc<{ hatchlingId: string }>("srv_claim_gift", { p_id: id });
+export const declineGift = (id: string) => rpc<{ ok: boolean }>("srv_decline_gift", { p_id: id });
 
 /** Toggle a turtle entry's "shared with friends" flag (own entry; RLS-guarded). */
 export async function setEntryShared(date: string, shared: boolean): Promise<void> {
@@ -70,5 +75,7 @@ export function friendErr(e: unknown): string {
   if (m.includes("NOT_FRIENDS")) return "You need to be friends first 🐢";
   if (m.includes("TOO_SOON")) return "Give them a moment before cheering again 🐢";
   if (m.includes("BAD_TITLE")) return "Give your goal a short name (1–60 chars).";
+  if (m.includes("GIFT_LIMIT")) return "They have lots of your gifts waiting already 🎁";
+  if (m.includes("NO_GIFT")) return "That gift is no longer available.";
   return "Something went wrong 🐢";
 }
