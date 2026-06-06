@@ -6,7 +6,7 @@ import type { AppState } from "@/types";
 import { makeInitialState } from "./initialState";
 
 const KEY = "turtwatch.v1";
-const SCHEMA_VERSION = 3; // v3 adds comfort prefs + perfect-day tracking
+const SCHEMA_VERSION = 4; // v4 adds the hatchling nursery (care + collection)
 
 interface Persisted {
   __v: number;

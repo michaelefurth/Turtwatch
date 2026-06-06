@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { useStore } from "./useStore";
 import { addDays, todayKey } from "@/logic/dates";
 import { STEP_DAILY_CAP } from "@/logic/quest";
+import { EGG_COST } from "@/data/hatchlings";
 import type { TurtleEntry } from "@/types";
 
 function entry(date: string, state: TurtleEntry["state"] = "completed"): TurtleEntry {
@@ -166,3 +167,26 @@ describe("store: autoApplyShield adjacency guard", () => {
     expect(useStore.getState().autoApplyShield()).toBeNull(); // already checked today
   });
 });
+
+describe("nursery: care hatches collectible turtles", () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it("requires a full egg of care before hatching", () => {
+    useStore.getState().addCare(EGG_COST - 1);
+    expect(useStore.getState().hatchEgg()).toBeNull();
+    useStore.getState().addCare(1);
+    const res = useStore.getState().hatchEgg();
+    expect(res).not.toBeNull();
+    const h = useStore.getState().hatch!;
+    expect(h.total).toBe(1);
+    expect(Object.values(h.collection).reduce((a, b) => a + b, 0)).toBe(1);
+    expect(h.care).toBe(0); // spent on the hatch
+  });
+
+  it("accumulates multiple eggs and caps care", () => {
+    useStore.getState().addCare(EGG_COST * 99);
+    expect(useStore.getState().hatch!.care).toBe(EGG_COST * 5); // capped
+    expect(useStore.getState().hatchEgg()).not.toBeNull();
+    expect(useStore.getState().hatch!.care).toBe(EGG_COST * 4);
+  });
+})

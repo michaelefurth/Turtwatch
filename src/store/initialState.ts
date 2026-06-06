@@ -51,6 +51,7 @@ export function makeInitialState(): AppState {
     lastBoosterOn: undefined,
     perfectDays: 0,
     lastPerfectDayOn: undefined,
+    hatch: { care: 0, collection: {}, total: 0 },
     cloud: { autoBackup: false },
   };
 }

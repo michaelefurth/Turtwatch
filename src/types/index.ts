@@ -213,6 +213,8 @@ export interface AppState {
   /** "Perfect pond day" tracking — all daily wins done (engagement, no currency) */
   perfectDays?: number;
   lastPerfectDayOn?: string; // date key the day was completed
+  /** Hatchlings — care earned from accountability hatches collectible turtles */
+  hatch?: { care: number; collection: Record<string, number>; total: number };
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }

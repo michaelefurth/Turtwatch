@@ -23,6 +23,7 @@ import {
   reachedCount, TASK_REWARD, LEG_BONUS, STEP_DAILY_CAP, type Landmark,
 } from "@/logic/quest";
 import { pullBooster, cardReward, BOOSTER_COST, TOTAL_CARDS } from "@/logic/booster";
+import { rollHatchling, EGG_COST } from "@/data/hatchlings";
 import type { FactCardDef } from "@/data/factCards";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
@@ -95,6 +96,8 @@ interface Actions {
   updateProfile: (p: Partial<UserProfile>) => void;
   markReminderFired: () => void;
   setSharedFlag: (date: string, shared: boolean) => void;
+  addCare: (n: number) => void; // care toward the next hatch egg (cosmetic)
+  hatchEgg: () => { id: string; isNew: boolean } | null;
   setCloud: (patch: Partial<NonNullable<AppState["cloud"]>>) => void;
   hydrateState: (state: AppState) => void;
   applyServerWallet: (w: { balance: number; lifetimeEarned?: number; lifetimeSpent?: number }) => void;
@@ -211,6 +214,7 @@ export const useStore = create<Store>((set, get) => {
       const { achievements, newAchievements } = evaluate(next);
       commit({ entries, ...money, achievements });
       reconciler?.("upload", { date, draft });
+      if (!basePaid) get().addCare(20); // accountability → hatch care
       return { ...reward, newAchievements };
     },
 
@@ -504,6 +508,7 @@ export const useStore = create<Store>((set, get) => {
       const { achievements } = evaluate({ ...s, mantrasFocused, mantra, ...money });
       commit({ mantrasFocused, mantra, achievements, ...money });
       reconciler?.("mantra", { amount: total });
+      if (award > 0) get().addCare(6); // accountability → hatch care
       return { total, lucky: luckyBonus };
     },
 
@@ -583,6 +588,7 @@ export const useStore = create<Store>((set, get) => {
       const { achievements } = evaluate({ ...s, quest, ...money });
       commit({ quest, achievements, ...money });
       reconciler?.("toggle_task", { id });
+      get().addCare(6); // accountability → hatch care
       return { rewarded, arrived, stepped: true };
     },
 
@@ -621,12 +627,26 @@ export const useStore = create<Store>((set, get) => {
 
     updateNotifications: (n) => commit({ notifications: { ...get().notifications, ...n } }),
     updatePrefs: (p) => commit({ prefs: { ...get().prefs, ...p } }),
+    // accountability → care toward hatching a turtle (capped at a few eggs queued)
+    addCare: (n) => {
+      const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
+      commit({ hatch: { ...h, care: Math.min(h.care + n, EGG_COST * 5) } });
+    },
+    hatchEgg: () => {
+      const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
+      if (h.care < EGG_COST) return null;
+      const baby = rollHatchling();
+      const isNew = !h.collection[baby.id];
+      commit({ hatch: { care: h.care - EGG_COST, total: h.total + 1, collection: { ...h.collection, [baby.id]: (h.collection[baby.id] ?? 0) + 1 } } });
+      return { id: baby.id, isNew };
+    },
     // record a "perfect pond day" once; returns true the first time today
     markPerfectDay: () => {
       const s = get();
       const today = todayKey();
       if (s.lastPerfectDayOn === today) return false;
       commit({ lastPerfectDayOn: today, perfectDays: (s.perfectDays ?? 0) + 1 });
+      get().addCare(25); // a perfect day gives a big care boost
       return true;
     },
     updateProfile: (p) => commit({ profile: { ...get().profile, ...p } }),
@@ -753,13 +773,13 @@ function stripState(s: Store): AppState {
     inventory, achievements, notifications, prefs, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
     gamesWon, mantrasFocused, quest, collection, lastBoosterOn,
-    perfectDays, lastPerfectDayOn, cloud,
+    perfectDays, lastPerfectDayOn, hatch, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, prefs, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
     gamesWon, mantrasFocused, quest, collection, lastBoosterOn,
-    perfectDays, lastPerfectDayOn, cloud,
+    perfectDays, lastPerfectDayOn, hatch, cloud,
   };
 }

@@ -34,6 +34,8 @@ export function Profile() {
   const mantrasFocused = useStore((s) => s.mantrasFocused ?? 0);
   const collection = useStore((s) => s.collection) ?? EMPTY_COLLECTION;
   const quest = useStore((s) => s.quest);
+  const hatch = useStore((s) => s.hatch);
+  const hatchCount = hatch ? Object.keys(hatch.collection).length : 0;
   const collected = Object.keys(collection).length;
 
   const ownedByRarity = useMemo(() => {
@@ -108,6 +110,16 @@ export function Profile() {
           </div>
         </Card>
       )}
+
+      <Card className="flat" onClick={() => nav("/nursery")}>
+        <div className="between">
+          <div>
+            <b>Nursery 🥚</b>
+            <div className="muted" style={{ fontSize: 13 }}>{hatchCount > 0 ? `${hatchCount} turtle friend${hatchCount === 1 ? "" : "s"} hatched` : "Care for eggs → hatch turtles in outfits"}</div>
+          </div>
+          <span className="chip">Open →</span>
+        </div>
+      </Card>
 
       <h2 style={{ marginBottom: 0 }}>Stats</h2>
       <div className="stat-grid">

@@ -98,6 +98,7 @@ export async function loadCloudState(): Promise<AppState | null> {
     prefs: prev.prefs ?? base.prefs,
     perfectDays: prev.perfectDays ?? 0,
     lastPerfectDayOn: prev.lastPerfectDayOn,
+    hatch: prev.hatch ?? base.hatch,
     profile: {
       displayName: (u as { display_name?: string }).display_name ?? "Pond Keeper",
       mascot: ((u as { mascot?: "turtley" | "shelldon" }).mascot ?? "turtley"),

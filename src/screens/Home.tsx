@@ -8,6 +8,7 @@ import { Card, PillButton, TurtbuxChip, TurtlePhoto, formatNum } from "@/compone
 import { GearIcon, BookIcon } from "@/components/icons";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { FACT_OF_DAY } from "@/logic/turtbux";
+import { EGG_COST } from "@/data/hatchlings";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
 import { equippedAccessory, equippedFrame, equippedSticker, findMemory, weeklyRecap } from "@/store/selectors";
@@ -47,6 +48,7 @@ export function Home() {
   const quest = useStore((s) => s.quest);
   const mantraState = useStore((s) => s.mantra);
   const lastBoosterOn = useStore((s) => s.lastBoosterOn);
+  const hatch = useStore((s) => s.hatch) ?? { care: 0, collection: {}, total: 0 };
   const markPerfectDay = useStore((s) => s.markPerfectDay);
   const recap = useMemo(() => weeklyRecap({ entries, ledger }), [entries, ledger]);
   const streak = useMemo(() => computeStreak(entries), [entries]);
@@ -250,6 +252,19 @@ export function Home() {
           {recap.days.map((d) => (
             <span key={d.key} className={`week-dot ${d.done ? "on" : ""} ${d.key === today ? "today" : ""}`} />
           ))}
+        </div>
+      </Card>
+
+      <Card onClick={() => nav("/nursery")} className="flat">
+        <div className="between">
+          <div className="row">
+            <span style={{ fontSize: 30 }} aria-hidden>{hatch.care >= EGG_COST ? "🐣" : "🥚"}</span>
+            <div>
+              <h3 style={{ margin: 0 }}>Nursery</h3>
+              <span className="muted" style={{ fontSize: 13 }}>{hatch.care >= EGG_COST ? "An egg is ready to hatch!" : "Care for an egg → hatch a turtle in an outfit"}</span>
+            </div>
+          </div>
+          <span className={`chip ${hatch.care >= EGG_COST ? "gold" : ""}`}>{hatch.care >= EGG_COST ? "Hatch! 🐣" : `${hatch.care % EGG_COST}/${EGG_COST}`}</span>
         </div>
       </Card>
 
