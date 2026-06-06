@@ -5,7 +5,7 @@ import { useFeedback } from "@/components/feedback";
 import { Card, PillButton, BackButton } from "@/components/common";
 import { useSheetFocus } from "@/hooks/useSheetFocus";
 import { POOLS } from "@/lib/variety";
-import { HATCHLINGS, HATCH_RARITY, EGG_COST, TOTAL_HATCHLINGS, hatchlingById, type Hatchling } from "@/data/hatchlings";
+import { HATCHLINGS, HATCH_RARITY, EGG_COST, RELEASE_CARE, TOTAL_HATCHLINGS, hatchlingById, type Hatchling } from "@/data/hatchlings";
 
 /** A baby turtle wearing an outfit. */
 function Critter({ outfit, size = 40 }: { outfit: string; size?: number }) {
@@ -21,9 +21,13 @@ export function Nursery() {
   const { celebrate, toast } = useFeedback();
   const hatch = useStore((s) => s.hatch) ?? { care: 0, collection: {}, total: 0 };
   const hatchEgg = useStore((s) => s.hatchEgg);
+  const setCompanion = useStore((s) => s.setCompanion);
+  const releaseHatchling = useStore((s) => s.releaseHatchling);
 
   const [reveal, setReveal] = useState<{ h: Hatchling; isNew: boolean } | null>(null);
+  const [detail, setDetail] = useState<Hatchling | null>(null);
   const revealRef = useSheetFocus<HTMLDivElement>(!!reveal, () => setReveal(null));
+  const detailRef = useSheetFocus<HTMLDivElement>(!!detail, () => setDetail(null));
 
   const ready = Math.floor(hatch.care / EGG_COST);
   const toNext = hatch.care - ready * EGG_COST;
@@ -81,7 +85,7 @@ export function Nursery() {
               key={h.id}
               className={`collect-card ${owned ? "" : "locked"}`}
               style={{ background: owned ? `color-mix(in srgb, ${HATCH_RARITY[h.rarity].color} 26%, var(--surface))` : "var(--line)" }}
-              onClick={() => owned ? setReveal({ h, isNew: false }) : toast("Keep caring to hatch this friend! 🥚", "❔")}
+              onClick={() => owned ? setDetail(h) : toast("Keep caring to hatch this friend! 🥚", "❔")}
               aria-label={owned ? `${h.name}, ${HATCH_RARITY[h.rarity].label}${count > 1 ? `, ${count}` : ""}` : "Unhatched"}
             >
               {owned ? <Critter outfit={h.outfit} size={30} /> : <span style={{ fontSize: 24, opacity: 0.5 }} aria-hidden>🥚</span>}
@@ -106,6 +110,35 @@ export function Nursery() {
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* owned hatchling detail: set companion / release a duplicate */}
+      <AnimatePresence>
+        {detail && (() => {
+          const count = hatch.collection[detail.id] ?? 0;
+          const isCompanion = hatch.companion === detail.id;
+          return (
+            <div className="scrim" onClick={() => setDetail(null)}>
+              <motion.div ref={detailRef} className="sheet center" role="dialog" aria-modal="true" aria-labelledby="detail-title" onClick={(e) => e.stopPropagation()} initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }} style={{ background: `linear-gradient(160deg, color-mix(in srgb, ${HATCH_RARITY[detail.rarity].color} 30%, var(--surface)), var(--surface))` }}>
+                <Critter outfit={detail.outfit} size={72} />
+                <h2 id="detail-title" style={{ margin: "8px 0 2px" }}>{detail.name}</h2>
+                <span className="chip" style={{ background: HATCH_RARITY[detail.rarity].color, color: "#3a4a3f" }}>{HATCH_RARITY[detail.rarity].label}</span>
+                <span className="muted" style={{ fontSize: 12, marginTop: 6 }}>You have {count}</span>
+                <div className="stack mt" style={{ width: "100%" }}>
+                  <PillButton onClick={() => { setCompanion(isCompanion ? null : detail.id); toast(isCompanion ? "Companion cleared" : `${detail.name} is now your buddy! 🐢`, detail.outfit); }}>
+                    {isCompanion ? "★ Your companion (tap to clear)" : "Set as companion"}
+                  </PillButton>
+                  {count > 1 && (
+                    <PillButton variant="secondary" onClick={() => { const g = releaseHatchling(detail.id); if (g > 0) toast(`Released a duplicate → +${g} care 🌿`, "🥚"); }}>
+                      Release a duplicate · +{RELEASE_CARE[detail.rarity]} care 🌿
+                    </PillButton>
+                  )}
+                  <PillButton variant="ghost" onClick={() => setDetail(null)}>Close</PillButton>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

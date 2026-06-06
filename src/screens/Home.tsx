@@ -8,7 +8,7 @@ import { Card, PillButton, TurtbuxChip, TurtlePhoto, formatNum } from "@/compone
 import { GearIcon, BookIcon } from "@/components/icons";
 import { computeStreak, mostRecentMissedDay } from "@/logic/streak";
 import { FACT_OF_DAY } from "@/logic/turtbux";
-import { EGG_COST } from "@/data/hatchlings";
+import { EGG_COST, hatchlingById } from "@/data/hatchlings";
 import { todayKey, prettyDate } from "@/logic/dates";
 import { FACTS } from "@/data/facts";
 import { equippedAccessory, equippedFrame, equippedSticker, findMemory, weeklyRecap } from "@/store/selectors";
@@ -49,7 +49,10 @@ export function Home() {
   const mantraState = useStore((s) => s.mantra);
   const lastBoosterOn = useStore((s) => s.lastBoosterOn);
   const hatch = useStore((s) => s.hatch) ?? { care: 0, collection: {}, total: 0 };
+  const lastNurseryNudgeOn = useStore((s) => s.lastNurseryNudgeOn);
+  const markNurseryNudge = useStore((s) => s.markNurseryNudge);
   const markPerfectDay = useStore((s) => s.markPerfectDay);
+  const companion = hatch.companion ? hatchlingById(hatch.companion) : undefined;
   const recap = useMemo(() => weeklyRecap({ entries, ledger }), [entries, ledger]);
   const streak = useMemo(() => computeStreak(entries), [entries]);
   const today = todayKey();
@@ -83,7 +86,12 @@ export function Home() {
     if (bonus > 0) toast(`Welcome back! Daily bonus +${bonus} 🪙`, "🎁");
     const protectedDay = autoApplyShield();
     if (protectedDay) setTimeout(() => toast("Shell Shield saved your streak! 🛡️", "🛡️"), bonus > 0 ? 350 : 0);
-  }, [autoApplyShield, claimLoginBonus, toast]);
+    // gentle, once-a-day nudge when an egg is ready to hatch (no pressure)
+    if (hatch.care >= EGG_COST && lastNurseryNudgeOn !== today) {
+      markNurseryNudge();
+      setTimeout(() => toast("An egg is ready to hatch in your nursery 🥚", "🐣"), 700);
+    }
+  }, [autoApplyShield, claimLoginBonus, toast, hatch.care, lastNurseryNudgeOn, markNurseryNudge, today]);
 
   // celebrate completing all of today's quick wins, once per day
   const celebratedPerfect = useRef(false);
@@ -150,7 +158,13 @@ export function Home() {
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 4, position: "relative" }}>
           <Mascot mascot={profile.mascot} mood={mood} accessory={accessory} size={96} wave={lapsed} interactive />
           {seasonal && <span aria-hidden style={{ position: "absolute", top: -2, right: "32%", fontSize: 20 }}>{seasonal}</span>}
+          {companion && (
+            <span aria-label={`Companion ${companion.name}`} style={{ position: "absolute", bottom: -2, right: "26%", fontSize: 32, lineHeight: 1 }}>
+              🐢<span aria-hidden style={{ position: "absolute", top: -5, right: -7, fontSize: 16 }}>{companion.outfit}</span>
+            </span>
+          )}
         </div>
+        {companion && <div className="muted" style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>with {companion.name} {companion.outfit}</div>}
         <StreakRing current={streak.current} longest={streak.longest} atRisk={streak.atRisk} gentle={gentle} />
       </Card>
 

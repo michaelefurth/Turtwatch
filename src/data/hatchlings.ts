@@ -16,6 +16,9 @@ export interface Hatchling {
 // care points to fill one egg
 export const EGG_COST = 100;
 
+// releasing a duplicate hatchling returns care (rarity-scaled) toward the next egg
+export const RELEASE_CARE: Record<HatchRarity, number> = { common: 15, rare: 25, epic: 40, legendary: 60 };
+
 export const HATCHLINGS: Hatchling[] = [
   // ---- common (everyday darlings) ----
   { id: "h-cap", name: "Cappy", outfit: "🧢", rarity: "common" },

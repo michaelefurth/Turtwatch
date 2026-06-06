@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { todayKey } from "@/logic/dates";
 import { computeStreak } from "@/logic/streak";
+import { EGG_COST } from "@/data/hatchlings";
 import { reminderTimeReached, showLocalNotification, notificationPermission } from "@/lib/notifications";
 
 const REMINDER_COPY = [
@@ -34,7 +35,11 @@ export function useReminders() {
       // otherwise the gentle daily nudge. If neither toggle applies, stay quiet.
       const streak = computeStreak(s.entries).current;
       const atRisk = s.notifications.streakRiskEnabled && streak >= 1;
-      const pick = atRisk
+      const eggReady = (s.hatch?.care ?? 0) >= EGG_COST;
+      // gentle care nudge takes the daily slot when an egg is waiting & today's not done
+      const pick = eggReady && s.notifications.dailyReminderEnabled
+        ? { title: "🥚 An egg is ready!", body: "A turtle is waiting to hatch in your nursery. Pop in when you can 🐢" }
+        : atRisk
         ? streakRiskCopy(streak)
         : s.notifications.dailyReminderEnabled
           ? REMINDER_COPY[new Date().getDate() % REMINDER_COPY.length]

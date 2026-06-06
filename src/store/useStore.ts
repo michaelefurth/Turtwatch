@@ -23,7 +23,7 @@ import {
   reachedCount, TASK_REWARD, LEG_BONUS, STEP_DAILY_CAP, type Landmark,
 } from "@/logic/quest";
 import { pullBooster, cardReward, BOOSTER_COST, TOTAL_CARDS } from "@/logic/booster";
-import { rollHatchling, EGG_COST } from "@/data/hatchlings";
+import { rollHatchling, hatchlingById, EGG_COST, RELEASE_CARE } from "@/data/hatchlings";
 import type { FactCardDef } from "@/data/factCards";
 import { REPAIR_COST, AI_RESCUE_COST, SHIELD_PRICE } from "@/logic/recovery";
 import { todayKey, addDays } from "@/logic/dates";
@@ -98,6 +98,9 @@ interface Actions {
   setSharedFlag: (date: string, shared: boolean) => void;
   addCare: (n: number) => void; // care toward the next hatch egg (cosmetic)
   hatchEgg: () => { id: string; isNew: boolean } | null;
+  setCompanion: (id: string | null) => void; // pick a hatchling buddy for Home
+  releaseHatchling: (id: string) => number; // release a duplicate -> care returned
+  markNurseryNudge: () => void;
   setCloud: (patch: Partial<NonNullable<AppState["cloud"]>>) => void;
   hydrateState: (state: AppState) => void;
   applyServerWallet: (w: { balance: number; lifetimeEarned?: number; lifetimeSpent?: number }) => void;
@@ -637,9 +640,25 @@ export const useStore = create<Store>((set, get) => {
       if (h.care < EGG_COST) return null;
       const baby = rollHatchling();
       const isNew = !h.collection[baby.id];
-      commit({ hatch: { care: h.care - EGG_COST, total: h.total + 1, collection: { ...h.collection, [baby.id]: (h.collection[baby.id] ?? 0) + 1 } } });
+      commit({ hatch: { ...h, care: h.care - EGG_COST, total: h.total + 1, collection: { ...h.collection, [baby.id]: (h.collection[baby.id] ?? 0) + 1 } } });
       return { id: baby.id, isNew };
     },
+    setCompanion: (id) => {
+      const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
+      commit({ hatch: { ...h, companion: id ?? undefined } });
+    },
+    // release a DUPLICATE (keeps at least one) back to the pond for care
+    releaseHatchling: (id) => {
+      const h = get().hatch ?? { care: 0, collection: {}, total: 0 };
+      if ((h.collection[id] ?? 0) < 2) return 0;
+      const baby = hatchlingById(id);
+      if (!baby) return 0;
+      const gain = RELEASE_CARE[baby.rarity];
+      const collection = { ...h.collection, [id]: h.collection[id] - 1 };
+      commit({ hatch: { ...h, collection, care: Math.min(h.care + gain, EGG_COST * 5) } });
+      return gain;
+    },
+    markNurseryNudge: () => commit({ lastNurseryNudgeOn: todayKey() }),
     // record a "perfect pond day" once; returns true the first time today
     markPerfectDay: () => {
       const s = get();
@@ -773,13 +792,13 @@ function stripState(s: Store): AppState {
     inventory, achievements, notifications, prefs, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
     gamesWon, mantrasFocused, quest, collection, lastBoosterOn,
-    perfectDays, lastPerfectDayOn, hatch, cloud,
+    perfectDays, lastPerfectDayOn, hatch, lastNurseryNudgeOn, cloud,
   } = s;
   return {
     onboarded, profile, wallet, ledger, entries, shields, factsRead,
     inventory, achievements, notifications, prefs, factOfDayClaimedOn,
     autoShieldCheckedOn, lastReminderOn, loginBonusClaimedOn, game, mantra,
     gamesWon, mantrasFocused, quest, collection, lastBoosterOn,
-    perfectDays, lastPerfectDayOn, hatch, cloud,
+    perfectDays, lastPerfectDayOn, hatch, lastNurseryNudgeOn, cloud,
   };
 }

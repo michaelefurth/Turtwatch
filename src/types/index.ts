@@ -214,7 +214,8 @@ export interface AppState {
   perfectDays?: number;
   lastPerfectDayOn?: string; // date key the day was completed
   /** Hatchlings — care earned from accountability hatches collectible turtles */
-  hatch?: { care: number; collection: Record<string, number>; total: number };
+  hatch?: { care: number; collection: Record<string, number>; total: number; companion?: string };
+  lastNurseryNudgeOn?: string; // gentle "egg ready" nudge fired at most once/day
   /** cloud account / backup metadata (Supabase-backed) */
   cloud?: { autoBackup: boolean; lastBackupAt?: string; email?: string };
 }
